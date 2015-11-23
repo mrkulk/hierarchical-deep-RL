@@ -318,7 +318,7 @@ end
 function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     local state = self:preprocess(rawstate):float()
-    local objects = self:get_objects(rawstate)
+    -- local objects = self:get_objects(rawstate)
     local curState
 
     if self.max_reward then

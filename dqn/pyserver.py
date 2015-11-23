@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import copy
 import sys
+import json, pdb
 
 port = "5555"
 if len(sys.argv) > 1:
@@ -40,7 +41,7 @@ class Recognizer:
 		w = np.shape(template)[1]
 		h = np.shape(template)[0]
 		res = cv2.matchTemplate(img,template,cv2.TM_CCOEFF_NORMED)
-		threshold = 0.7
+		threshold = 0.75
 		loc = np.where( res >= threshold)
 		return loc, w, h
 
@@ -63,11 +64,14 @@ class Recognizer:
 		cv2.rectangle(img, (coords['skull'][0] - 5, coords['skull'][1] - 5), (coords['skull'][0] + 5, coords['skull'][1] + 5),  (0,0,255), 2)
 		return img
 
+	def get_lives(self, img):
+		return np.sum(img)
+
 
 def show(img):
 	cv2.imshow('image',img)
 	cv2.waitKey(0)
-	cv2.destroyAllWindows()
+	# cv2.destroyAllWindows()
 
 def unit_test():
     rec = Recognizer()
@@ -76,22 +80,29 @@ def unit_test():
     except:
         print 'Using default image 1.png'
         img_id = '1'
-    img_rgb = cv2.imread('dump/'+img_id+'.png')
+    img_rgb = cv2.imread('tmp.png')
+    im_score = img_rgb[15:20, 55:95, :]
     img_rgb = img_rgb[30:,:,:]
     coords = rec.get(img_rgb)
     img = rec.drawbbox(img_rgb, coords)
-    show(img)
+    show(im_score)
 
-rec = Recognizer()
-while True:
-    #  Wait for next request from client
-    message = socket.recv()
-    # print "Received request: ", message
-    img_rgb = cv2.imread('tmp.png')
-    img_rgb = img_rgb[30:,:,:]
-    coords = rec.get(img_rgb)
-    # img = rec.drawbbox(img_rgb, coords)
-    # show(img)  
-    socket.send("World from %s" % str(coords))
+# unit_test()
 
+if __name__ == '__main__':
+	rec = Recognizer()
+	while True:
+	    #  Wait for next request from client
+	    message = socket.recv()
+	    # print "Received request: ", message
+	    img_rgb = cv2.imread('tmp.png')
+	    im_score = img_rgb[15:20, 55:95, :]
+	    img_rgb = img_rgb[30:,:,:]
+	    coords = rec.get(img_rgb)
+	    img = rec.drawbbox(img_rgb, coords)
+	    show(img)  
+	    socket.send("World from %s" % str(coords))
+	    print(rec.get_lives(im_score))
+	    # pdb.set_trace()
+	    # socket.send(json.dumps(coords))
 
