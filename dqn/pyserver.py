@@ -129,7 +129,7 @@ if __name__ == '__main__':
 	    # img = rec.drawbbox(img_rgb, coords)
 	    # show(img)  
 	    objects_list = rec.process_objects(coords)
-	    socket.send(json.dumps(objects_list))
+	    socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
 	    # socket.send("World from %s" % str(coords))
 	    # print(rec.get_lives(im_score))
 

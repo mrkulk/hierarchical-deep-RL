@@ -311,8 +311,10 @@ function nql:compute_validation_statistics()
     self.tderr_avg = delta:clone():abs():mean()
 end
 
+
 function process_pystr(msg)
-    
+    loadstring(msg)()
+    return objlist
 end
 
 -- returns a table of num_objects x vectorized object reps
