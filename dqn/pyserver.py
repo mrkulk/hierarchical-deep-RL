@@ -99,10 +99,10 @@ if __name__ == '__main__':
 	    im_score = img_rgb[15:20, 55:95, :]
 	    img_rgb = img_rgb[30:,:,:]
 	    coords = rec.get(img_rgb)
-	    img = rec.drawbbox(img_rgb, coords)
-	    show(img)  
+	    # img = rec.drawbbox(img_rgb, coords)
+	    # show(img)  
 	    socket.send("World from %s" % str(coords))
-	    print(rec.get_lives(im_score))
+	    # print(rec.get_lives(im_score))
 	    # pdb.set_trace()
 	    # socket.send(json.dumps(coords))
 
