@@ -265,7 +265,8 @@ function nql:qLearnMinibatch()
     self.dw:zero()
 
     -- get new gradient
-    self.network:backward(s, targets)
+    -- print(subgoals)
+    self.network:backward({s, subgoals}, targets)
 
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
@@ -314,40 +315,53 @@ end
 
 function process_pystr(msg)
     loadstring(msg)()
+    for i = 1, #objlist do
+        objlist[i] = torch.Tensor(objlist[i])
+    end
     return objlist
 end
 
 -- returns a table of num_objects x vectorized object reps
 function nql:get_objects(rawstate)
     image.save('tmp.png', rawstate[1])
-    skt:send("hello from cli")
+    skt:send("")
     msg = skt:recv()
     while msg == nil do
         msg = skt:recv()
     end
     local object_list = process_pystr(msg)
-    print("recv: ",object_list)
-
-    return nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
+    return object_list --nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
 end
 
 function nql:pick_subgoal(rawstate)
     local objects = self:get_objects(rawstate)
-    local indxs = torch.random(1, #objects)
+    local indxs = torch.random(2, #objects) -- first is the agent
     return objects[indxs]
 end
 
 function nql:isGoalReached(subgoal, objects)
-    return false
+    local agent = objects[1]
+    local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
+    if dist < 5 then
+        return true
+    else
+        return false
+    end
 end
 
 function nql:intrinsic_reward(subgoal, objects)
     -- return reward based on distance or 0/1 towards sub-goal
-    return 0
+    local agent = objects[1]
+    local reward = -math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
+    -- print(subgoal, reward)
+    return reward
 end
 
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
+    if terminal then
+        reward = -500
+    end
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
@@ -437,11 +451,11 @@ function nql:greedy(state, subgoal)
         assert(false, 'Input must be at least 3D')
         state = state:resize(1, state:size(1), state:size(2))
     end
-
+    subgoal = torch.reshape(subgoal, 1, self.subgoal_dims)
     if self.gpu >= 0 then
         state = state:cuda()
+        subgoal = subgoal:cuda()
     end
-
     local q = self.network:forward({state, subgoal}):float():squeeze()
     local maxq = q[1]
     local besta = {1}

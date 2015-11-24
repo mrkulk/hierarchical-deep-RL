@@ -44,7 +44,7 @@ cmd:option('-verbose', 2,
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 
-cmd:option('-subgoal_dims', 10, 'dimensions of subgoals')
+cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 
 cmd:text()
