@@ -311,6 +311,10 @@ function nql:compute_validation_statistics()
     self.tderr_avg = delta:clone():abs():mean()
 end
 
+function process_pystr(msg)
+    
+end
+
 -- returns a table of num_objects x vectorized object reps
 function nql:get_objects(rawstate)
     image.save('tmp.png', rawstate[1])
@@ -319,8 +323,10 @@ function nql:get_objects(rawstate)
     while msg == nil do
         msg = skt:recv()
     end
+    local object_list = process_pystr(msg)
+    print("recv: ",object_list)
+
     return nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
-    -- print("recv: ",msg)
 end
 
 function nql:pick_subgoal(rawstate)
