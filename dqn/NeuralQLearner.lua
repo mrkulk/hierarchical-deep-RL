@@ -311,25 +311,39 @@ function nql:compute_validation_statistics()
     self.tderr_avg = delta:clone():abs():mean()
 end
 
+-- returns a table of num_objects x vectorized object reps
 function nql:get_objects(rawstate)
-    -- print(rawstate[1])
     image.save('tmp.png', rawstate[1])
     skt:send("hello from cli")
     msg = skt:recv()
     while msg == nil do
         msg = skt:recv()
     end
+    return nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
     -- print("recv: ",msg)
 end
 
-function nql:intrinsic_reward(objects, goal)
+function nql:pick_subgoal(rawstate)
+    local objects = self:get_objects(rawstate)
+    local indxs = torch.random(1, #objects)
+    return objects[indxs]
+end
+
+function nql:isGoalReached(subgoal, objects)
+    return false
+end
+
+function nql:intrinsic_reward(subgoal, objects)
     -- return reward based on distance or 0/1 towards sub-goal
+    return 0
 end
 
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     local state = self:preprocess(rawstate):float()
-    -- local objects = self:get_objects(rawstate)
+    local objects = self:get_objects(rawstate)
+    reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
+
     local curState
 
     if self.max_reward then
@@ -389,9 +403,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end
 
     if not terminal then
-        return actionIndex
+        return actionIndex, self:isGoalReached(subgoal, objects)
     else
-        return 0
+        return 0, self:isGoalReached(subgoal, objects)
     end
 end
 

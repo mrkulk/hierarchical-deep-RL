@@ -84,11 +84,11 @@ local screen, reward, terminal = game_env:getState()
 print("Iteration ..", step)
 local win = nil
 
-subgoal = torch.zeros(1, 10):float() -- TODO: 
+subgoal = agent:pick_subgoal(screen)
 
 while step < opt.steps do
     step = step + 1
-    local action_index = agent:perceive(subgoal, reward, screen, terminal)
+    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal)
 
     -- game over? get next game!
     if not terminal then
@@ -99,8 +99,13 @@ while step < opt.steps do
         else
             screen, reward, terminal = game_env:newGame()
         end
+        isGoalReached = true --new game so reset goal
     end
   
+    if isGoalReached then
+        subgoal = agent:pick_subgoal(screen)
+    end
+
     -- display screen
     win = image.display({image=screen, win=win})
 
@@ -117,6 +122,7 @@ while step < opt.steps do
     if step % opt.eval_freq == 0 and step > learn_start then
 
         screen, reward, terminal = game_env:newGame()
+        subgoal = agent:pick_subgoal(screen)
 
         total_reward = 0
         nrewards = 0
@@ -125,7 +131,7 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local action_index = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
+            local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
@@ -146,6 +152,10 @@ while step < opt.steps do
                 episode_reward = 0
                 nepisodes = nepisodes + 1
                 screen, reward, terminal = game_env:nextRandomGame()
+                isGoalReached = true --new game so reset subgoal
+            end
+            if isGoalReached then
+                subgoal = agent:pick_subgoal(screen)
             end
         end
 

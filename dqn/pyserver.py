@@ -41,7 +41,7 @@ class Recognizer:
 		w = np.shape(template)[1]
 		h = np.shape(template)[0]
 		res = cv2.matchTemplate(img,template,cv2.TM_CCOEFF_NORMED)
-		threshold = 0.75
+		threshold = 0.8
 		loc = np.where( res >= threshold)
 		return loc, w, h
 
@@ -85,9 +85,9 @@ def unit_test():
     img_rgb = img_rgb[30:,:,:]
     coords = rec.get(img_rgb)
     img = rec.drawbbox(img_rgb, coords)
-    show(im_score)
+    show(img)
 
-# unit_test()
+unit_test()
 
 if __name__ == '__main__':
 	rec = Recognizer()
@@ -103,6 +103,6 @@ if __name__ == '__main__':
 	    # show(img)  
 	    socket.send("World from %s" % str(coords))
 	    # print(rec.get_lives(im_score))
-	    # pdb.set_trace()
+	    pdb.set_trace()
 	    # socket.send(json.dumps(coords))
 
