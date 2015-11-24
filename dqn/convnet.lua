@@ -39,27 +39,46 @@ function create_network(args)
     -- reshape all feature planes into a vector per example
     net:add(nn.Reshape(nel))
 
-    -- fully connected layer
-    net:add(nn.Linear(nel, args.n_hid[1]))
-    net:add(args.nl())
+    -- join vectors
+
+    local subgoal_proc = nn.Sequential()
+                            :add(nn.Linear(args.subgoal_dims, args.subgoal_nhid))
+                            :add(nn.Sigmoid())
+                            :add(nn.Linear(args.subgoal_nhid,args.subgoal_nhid))
+                            :add(nn.Sigmoid())
+
+    local net_parallel = nn.ParallelTable(2)
+    net_parallel:add(net)
+    net_parallel:add(subgoal_proc)
+
+    local full_net = nn.Sequential()
+    full_net:add(net_parallel)
+    full_net:add(nn.JoinTable(2))
+
+
+    -- fully connected layer    
+    full_net:add(nn.Linear(nel+args.subgoal_nhid, args.n_hid[1]))
+    full_net:add(args.nl())
     local last_layer_size = args.n_hid[1]
 
     for i=1,(#args.n_hid-1) do
         -- add Linear layer
         last_layer_size = args.n_hid[i+1]
-        net:add(nn.Linear(args.n_hid[i], last_layer_size))
-        net:add(args.nl())
+        full_net:add(nn.Linear(args.n_hid[i], last_layer_size))
+        full_net:add(args.nl())
     end
+
+
 
     -- add the last fully connected layer (to actions)
-    net:add(nn.Linear(last_layer_size, args.n_actions))
+    full_net:add(nn.Linear(last_layer_size, args.n_actions))
 
     if args.gpu >=0 then
-        net:cuda()
+        full_net:cuda()
     end
     if args.verbose >= 2 then
-        print(net)
+        print(full_net)
         print('Convolutional layers flattened output size:', nel)
     end
-    return net
+    return full_net
 end

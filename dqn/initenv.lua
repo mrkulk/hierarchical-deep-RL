@@ -122,6 +122,9 @@ function setup(_opt)
     _opt.agent_params.actions   = gameActions
     _opt.agent_params.gpu       = _opt.gpu
     _opt.agent_params.best      = _opt.best
+    _opt.agent_params.subgoal_dims = _opt.subgoal_dims
+    _opt.agent_params.subgoal_nhid = _opt.subgoal_nhid
+
     if _opt.network ~= '' then
         _opt.agent_params.network = _opt.network
     end

@@ -44,6 +44,9 @@ cmd:option('-verbose', 2,
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 
+cmd:option('-subgoal_dims', 10, 'dimensions of subgoals')
+cmd:option('-subgoal_nhid', 50, '')
+
 cmd:text()
 
 local opt = cmd:parse(arg)
@@ -80,9 +83,12 @@ local screen, reward, terminal = game_env:getState()
 
 print("Iteration ..", step)
 local win = nil
+
+subgoal = torch.zeros(1, 10):float() -- TODO: 
+
 while step < opt.steps do
     step = step + 1
-    local action_index = agent:perceive(reward, screen, terminal)
+    local action_index = agent:perceive(subgoal, reward, screen, terminal)
 
     -- game over? get next game!
     if not terminal then
@@ -119,7 +125,7 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+            local action_index = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])

@@ -54,6 +54,8 @@ function trans:__init(args)
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
     self.r = torch.zeros(self.maxSize)
+    self.subgoal_dims = args.subgoal_dims
+    self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims)
     self.t = torch.ByteTensor(self.maxSize):fill(0)
     self.action_encodings = torch.eye(self.numActions)
 
@@ -62,6 +64,7 @@ function trans:__init(args)
     self.recent_s = {}
     self.recent_a = {}
     self.recent_t = {}
+    self.recent_subgoal = {}
 
     local s_size = self.stateDim*histLen
     self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
@@ -69,10 +72,11 @@ function trans:__init(args)
     self.buf_term   = torch.ByteTensor(self.bufferSize):fill(0)
     self.buf_s      = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, s_size):fill(0)
-
+    self.buf_subgoal = torch.zeros(self.bufferSize, args.subgoal_dims)
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
         self.gpu_s2 = self.buf_s2:float():cuda()
+        self.gpu_subgoal = self.buf_subgoal:float():cuda()
     end
 end
 
@@ -99,9 +103,10 @@ function trans:fill_buffer()
     self.buf_ind = 1
     local ind
     for buf_ind=1,self.bufferSize do
-        local s, a, r, s2, term = self:sample_one(1)
+        local s, a, r, s2, term, subgoal = self:sample_one(1)
         self.buf_s[buf_ind]:copy(s)
         self.buf_a[buf_ind] = a
+        self.buf_subgoal[buf_ind] = subgoal
         self.buf_r[buf_ind] = r
         self.buf_s2[buf_ind]:copy(s2)
         self.buf_term[buf_ind] = term
@@ -111,6 +116,7 @@ function trans:fill_buffer()
     if self.gpu and self.gpu >= 0 then
         self.gpu_s:copy(self.buf_s)
         self.gpu_s2:copy(self.buf_s2)
+        self.gpu_subgoal:copy(self.buf_subgoal)
     end
 end
 
@@ -157,14 +163,15 @@ function trans:sample(batch_size)
     self.buf_ind = self.buf_ind+batch_size
     local range = {{index, index+batch_size-1}}
 
-    local buf_s, buf_s2, buf_a, buf_r, buf_term = self.buf_s, self.buf_s2,
-        self.buf_a, self.buf_r, self.buf_term
+    local buf_s, buf_s2, buf_a, buf_r, buf_term, buf_subgoal = self.buf_s, self.buf_s2,
+        self.buf_a, self.buf_r, self.buf_term, self.buf_subgoal
     if self.gpu and self.gpu >=0  then
         buf_s = self.gpu_s
         buf_s2 = self.gpu_s2
+        buf_subgoal = self.gpu_subgoal
     end
 
-    return buf_s[range], buf_a[range], buf_r[range], buf_s2[range], buf_term[range]
+    return buf_s[range], buf_a[range], buf_r[range], buf_s2[range], buf_term[range], buf_subgoal[range]
 end
 
 
@@ -264,12 +271,11 @@ function trans:get(index)
     local s = self:concatFrames(index)
     local s2 = self:concatFrames(index+1)
     local ar_index = index+self.recentMemSize-1
-
-    return s, self.a[ar_index], self.r[ar_index], s2, self.t[ar_index+1]
+    return s, self.a[ar_index], self.r[ar_index], s2, self.t[ar_index+1], self.subgoal[ar_index]
 end
 
 
-function trans:add(s, a, r, term)
+function trans:add(s, a, r, term, subgoal)
     assert(s, 'State cannot be nil')
     assert(a, 'Action cannot be nil')
     assert(r, 'Reward cannot be nil')
@@ -290,6 +296,7 @@ function trans:add(s, a, r, term)
     self.s[self.insertIndex] = s:clone():float():mul(255)
     self.a[self.insertIndex] = a
     self.r[self.insertIndex] = r
+    self.subgoal[self.insertIndex] = subgoal
     if term then
         self.t[self.insertIndex] = 1
     else
@@ -354,7 +361,8 @@ function trans:write(file)
                       self.numEntries,
                       self.insertIndex,
                       self.recentMemSize,
-                      self.histIndices})
+                      self.histIndices,
+                      self.subgoal_dims})
 end
 
 
@@ -365,7 +373,7 @@ Recreates an empty table.
 @param file (FILE object ) @see torch.DiskFile
 --]]
 function trans:read(file)
-    local stateDim, numActions, histLen, maxSize, bufferSize, numEntries, insertIndex, recentMemSize, histIndices = unpack(file:readObject())
+    local stateDim, numActions, histLen, maxSize, bufferSize, numEntries, insertIndex, recentMemSize, histIndices, subgoal_dims = unpack(file:readObject())
     self.stateDim = stateDim
     self.numActions = numActions
     self.histLen = histLen
@@ -375,11 +383,13 @@ function trans:read(file)
     self.histIndices = histIndices
     self.numEntries = 0
     self.insertIndex = 0
+    self.subgoal_dims = subgoal_dims
 
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
     self.r = torch.zeros(self.maxSize)
     self.t = torch.ByteTensor(self.maxSize):fill(0)
+    self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims)
     self.action_encodings = torch.eye(self.numActions)
 
     -- Tables for storing the last histLen states.  They are used for
@@ -387,15 +397,18 @@ function trans:read(file)
     self.recent_s = {}
     self.recent_a = {}
     self.recent_t = {}
+    self.recent_subgoal = {}
 
     self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
     self.buf_r      = torch.zeros(self.bufferSize)
     self.buf_term   = torch.ByteTensor(self.bufferSize):fill(0)
     self.buf_s      = torch.ByteTensor(self.bufferSize, self.stateDim * self.histLen):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, self.stateDim * self.histLen):fill(0)
+    self.buf_subgoal = torch.zeros(self.bufferSize, self.subgoal_dims)
 
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
         self.gpu_s2 = self.buf_s2:float():cuda()
+        self.gpu_subgoal = self.buf_subgoal:float():cuda()
     end
 end

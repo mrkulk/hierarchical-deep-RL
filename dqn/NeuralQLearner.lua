@@ -26,6 +26,9 @@ function nql:__init(args)
     self.verbose    = args.verbose
     self.best       = args.best
 
+    self.subgoal_dims = args.subgoal_dims
+    self.subgoal_nhid = args.subgoal_nhid
+
     --- epsilon annealing
     self.ep_start   = args.ep or 1
     self.ep         = self.ep_start -- Exploration probability.
@@ -133,7 +136,8 @@ function nql:__init(args)
         histLen = self.hist_len, gpu = self.gpu,
         maxSize = self.replay_memory, histType = self.histType,
         histSpacing = self.histSpacing, nonTermProb = self.nonTermProb,
-        bufferSize = self.bufferSize
+        bufferSize = self.bufferSize,
+        subgoal_dims = args.subgoal_dims
     }
 
     self.transitions = dqn.TransitionTable(transition_args)
@@ -141,6 +145,7 @@ function nql:__init(args)
     self.numSteps = 0 -- Number of perceived states.
     self.lastState = nil
     self.lastAction = nil
+    self.lastSubgoal = nil
     self.v_avg = 0 -- V running average.
     self.tderr_avg = 0 -- TD error running average.
 
@@ -193,6 +198,7 @@ function nql:getQUpdate(args)
     a = args.a
     r = args.r
     s2 = args.s2
+    subgoals = args.subgoals
     term = args.term
 
     -- The order of calls to forward is a bit odd in order
@@ -209,7 +215,7 @@ function nql:getQUpdate(args)
     end
 
     -- Compute max_a Q(s_2, a).
-    q2_max = target_q_net:forward(s2):float():max(2)
+    q2_max = target_q_net:forward({s2, subgoals}):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
@@ -222,7 +228,7 @@ function nql:getQUpdate(args)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s):float()
+    local q_all = self.network:forward({s, subgoals}):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -250,10 +256,10 @@ function nql:qLearnMinibatch()
     -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
     assert(self.transitions:size() > self.minibatch_size)
 
-    local s, a, r, s2, term = self.transitions:sample(self.minibatch_size)
+    local s, a, r, s2, term, subgoals = self.transitions:sample(self.minibatch_size)
 
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
-        term=term, update_qmax=true}
+        term=term, subgoals = subgoals, update_qmax=true}
 
     -- zero gradients of parameters
     self.dw:zero()
@@ -287,18 +293,19 @@ end
 
 
 function nql:sample_validation_data()
-    local s, a, r, s2, term = self.transitions:sample(self.valid_size)
+    local s, a, r, s2, term, subgoals = self.transitions:sample(self.valid_size)
     self.valid_s    = s:clone()
     self.valid_a    = a:clone()
     self.valid_r    = r:clone()
     self.valid_s2   = s2:clone()
     self.valid_term = term:clone()
+    self.valid_subgoals = subgoals:clone()
 end
 
 
 function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term, subgoals = self.valid_subgoals}
 
     self.v_avg = self.q_max * q2_max:mean()
     self.tderr_avg = delta:clone():abs():mean()
@@ -315,7 +322,11 @@ function nql:get_objects(rawstate)
     -- print("recv: ",msg)
 end
 
-function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
+function nql:intrinsic_reward(objects, goal)
+    -- return reward based on distance or 0/1 towards sub-goal
+end
+
+function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     local state = self:preprocess(rawstate):float()
     -- local objects = self:get_objects(rawstate)
@@ -331,14 +342,14 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
         self.r_max = math.max(self.r_max, reward)
     end
 
-    self.transitions:add_recent_state(state, terminal)
+    self.transitions:add_recent_state(state, terminal) -- TODO check
 
     local currentFullState = self.transitions:get_recent()
 
     --Store transition s, a, r, s'
     if self.lastState and not testing then
         self.transitions:add(self.lastState, self.lastAction, reward,
-                             self.lastTerminal, priority)
+                             self.lastTerminal, self.lastSubgoal, priority)
     end
 
     if self.numSteps == self.learn_start+1 and not testing then
@@ -351,10 +362,10 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        actionIndex = self:eGreedy(curState, testing_ep)
+        actionIndex = self:eGreedy(curState, testing_ep, subgoal)
     end
 
-    self.transitions:add_recent_action(actionIndex)
+    self.transitions:add_recent_action(actionIndex) 
 
     --Do some Q-learning updates
     if self.numSteps > self.learn_start and not testing and
@@ -371,6 +382,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     self.lastState = state:clone()
     self.lastAction = actionIndex
     self.lastTerminal = terminal
+    self.lastSubgoal = subgoal
 
     if self.target_q and self.numSteps % self.target_q == 1 then
         self.target_network = self.network:clone()
@@ -384,7 +396,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 end
 
 
-function nql:eGreedy(state, testing_ep)
+function nql:eGreedy(state, testing_ep, subgoal)
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
@@ -392,12 +404,12 @@ function nql:eGreedy(state, testing_ep)
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
     else
-        return self:greedy(state)
+        return self:greedy(state, subgoal)
     end
 end
 
 
-function nql:greedy(state)
+function nql:greedy(state, subgoal)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')
@@ -408,7 +420,7 @@ function nql:greedy(state)
         state = state:cuda()
     end
 
-    local q = self.network:forward(state):float():squeeze()
+    local q = self.network:forward({state, subgoal}):float():squeeze()
     local maxq = q[1]
     local besta = {1}
 
