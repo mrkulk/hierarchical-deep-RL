@@ -29,7 +29,7 @@ cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
-cmd:option('-saveNetworkParams', false,
+cmd:option('-saveNetworkParams', true,
            'saves the agent network in a separate file')
 cmd:option('-prog_freq', 5*10^3, 'frequency of progress output')
 cmd:option('-save_freq', 5*10^4, 'the model is saved every save_freq steps')
@@ -46,6 +46,8 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
+cmd:option('-display_game', false, 'option to display game')
+
 
 cmd:text()
 
@@ -107,7 +109,9 @@ while step < opt.steps do
     end
 
     -- display screen
-    win = image.display({image=screen, win=win})
+    if opt.display_game then
+        win = image.display({image=screen, win=win})
+    end
 
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
@@ -137,7 +141,9 @@ while step < opt.steps do
             screen, reward, terminal = game_env:step(game_actions[action_index])
 
             -- display screen
-            win = image.display({image=screen, win=win})
+            if opt.display_game then
+                win = image.display({image=screen, win=win})
+            end
 
             if estep%1000 == 0 then collectgarbage() end
 
