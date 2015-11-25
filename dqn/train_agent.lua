@@ -46,7 +46,7 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', false, 'option to display game')
+cmd:option('-display_game', true, 'option to display game')
 
 
 cmd:text()
@@ -86,7 +86,7 @@ local screen, reward, terminal = game_env:getState()
 print("Iteration ..", step)
 local win = nil
 
-subgoal = agent:pick_subgoal(screen)
+local subgoal = agent:pick_subgoal(screen)
 
 while step < opt.steps do
     step = step + 1
@@ -106,11 +106,16 @@ while step < opt.steps do
   
     if isGoalReached then
         subgoal = agent:pick_subgoal(screen)
+        isGoalReached = false
     end
+
 
     -- display screen
     if opt.display_game then
-        win = image.display({image=screen, win=win})
+        screen_cropped = screen:clone()
+        screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+        screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        win = image.display({image=screen_cropped, win=win})
     end
 
     if step % opt.prog_freq == 0 then
@@ -124,7 +129,6 @@ while step < opt.steps do
     if step%1000 == 0 then collectgarbage() end
 
     if step % opt.eval_freq == 0 and step > learn_start then
-
         screen, reward, terminal = game_env:newGame()
         subgoal = agent:pick_subgoal(screen)
 
@@ -162,6 +166,7 @@ while step < opt.steps do
             end
             if isGoalReached then
                 subgoal = agent:pick_subgoal(screen)
+                isGoalReached = false
             end
         end
 

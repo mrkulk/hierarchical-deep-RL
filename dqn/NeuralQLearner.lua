@@ -223,9 +223,11 @@ function nql:getQUpdate(args)
 
     delta = r:clone():float()
 
-    if self.rescale_r then
-        delta:div(self.r_max)
-    end
+    -- TODO: removed scaling. check later
+    -- if self.rescale_r then
+    --     delta:div(self.r_max)
+    -- end
+
     delta:add(q2)
 
     -- q = Q(s,a)
@@ -336,15 +338,18 @@ end
 
 function nql:pick_subgoal(rawstate, oid)
     local objects = self:get_objects(rawstate)
-    local indxs
-    indxs = oid or torch.random(2, #objects) -- first is the agent
+    local indxs = oid or torch.random(2, #objects) -- first is the agent
+    while objects[indxs]:sum() == 0 do -- object absent
+        indxs = torch.random(2, #objects) -- first is the agent
+    end
     return objects[indxs]
 end
 
 function nql:isGoalReached(subgoal, objects)
     local agent = objects[1]
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 5 then
+    if dist < 10 then
+        print('subgoal reached!')
         return true
     else
         return false
@@ -362,6 +367,7 @@ function nql:intrinsic_reward(subgoal, objects)
     else
         reward = 0
     end
+    -- print(reward)
     return reward
 end
 
@@ -374,7 +380,13 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
+    local goal_reached = self:isGoalReached(subgoal, objects)
+
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
+    reward = reward - 1 -- penalize for just standing
+    if goal_reached then
+        reward = reward + 10
+    end
 
     local curState
 
@@ -436,9 +448,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end
 
     if not terminal then
-        return actionIndex, self:isGoalReached(subgoal, objects)
+        return actionIndex, goal_reached
     else
-        return 0, self:isGoalReached(subgoal, objects)
+        return 0, goal_reached
     end
 end
 
@@ -470,7 +482,7 @@ function nql:greedy(state, subgoal)
     local q = self.network:forward({state, subgoal}):float():squeeze()
     local maxq = q[1]
     local besta = {1}
-
+    -- print("Q Value:", q)
     -- Evaluate all other actions (with random tie-breaking)
     for a = 2, self.n_actions do
         if q[a] > maxq then

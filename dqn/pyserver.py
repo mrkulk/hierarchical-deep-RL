@@ -44,6 +44,8 @@ class Recognizer:
 		res = cv2.matchTemplate(img,template,cv2.TM_CCOEFF_NORMED)
 		threshold = 0.8
 		loc = np.where( res >= threshold)
+		for i in range(np.shape(loc[0])[0]):
+			loc[0][i] += h/2; loc[1][i] += w/2
 		return loc, w, h
 
 	def get(self, img):
@@ -77,9 +79,11 @@ class Recognizer:
 		objects_list = []
 
 		objects_list.append([objects['man'][0], objects['man'][1]] + self.get_onehot(self.map['man']))
+		objects_list.append([objects['skull'][0], objects['skull'][1]] + self.get_onehot(self.map['skull']))
+		
 		for obj, val in objects.items():
 			# print(obj, val)
-			if obj is not 'man':
+			if obj is not 'man' and obj is not 'skull':
 				if type(val) is not type(1):
 					if type(val[0]) == np.int64:
 						objects_list.append([val[0], val[1]]  + self.get_onehot(self.map[obj]))
@@ -117,20 +121,32 @@ def unit_test():
 
 # unit_test()
 
-if __name__ == '__main__':
-	rec = Recognizer()
-	while True:
-	    #  Wait for next request from client
-	    message = socket.recv()
-	    # print "Received request: ", message
-	    img_rgb = cv2.imread('tmp.png')
-	    im_score = img_rgb[15:20, 55:95, :]
-	    img_rgb = img_rgb[30:,:,:]
-	    coords = rec.get(img_rgb)
-	    # img = rec.drawbbox(img_rgb, coords)
-	    # show(img)  
-	    objects_list = rec.process_objects(coords)
-	    socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
-	    # socket.send("World from %s" % str(coords))
-	    # print(rec.get_lives(im_score))
+rec = Recognizer()
+
+img_rgb = cv2.imread('image2.png')
+im_score = img_rgb[15:20, 55:95, :]
+img_rgb = img_rgb[30:,:,:]
+coords = rec.get(img_rgb)
+objects_list_cache = rec.process_objects(coords)
+
+while True:
+    #  Wait for next request from client
+    message = socket.recv()
+    # print "Received request: ", message
+    img_rgb = cv2.imread('tmp.png')
+    im_score = img_rgb[15:20, 55:95, :]
+    img_rgb = img_rgb[30:,:,:]
+    coords = rec.get(img_rgb)
+    # img = rec.drawbbox(img_rgb, coords)
+    # show(img)  
+    objects_list = copy.deepcopy(objects_list_cache)
+    objects_list2 = rec.process_objects(coords)
+    objects_list[0] = objects_list2[0]
+    objects_list[1] = objects_list2[1]
+    if objects_list[1][0] == 0 and objects_list[1][1] == 0:
+    	objects_list[1][3] = 0
+
+    socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
+    # socket.send("World from %s" % str(coords))
+    # print(rec.get_lives(im_score))
 

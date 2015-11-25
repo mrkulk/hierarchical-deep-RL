@@ -78,7 +78,7 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 3)
+subgoal = agent:pick_subgoal(screen, 7)
 print('Subgoal:', subgoal)
 
 -- play one episode (game)
@@ -87,17 +87,22 @@ while not terminal do
     agent.bestq = 0
     
     -- choose the best action
-    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 1)
+    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
 
     -- play game in test mode (episodes don't end when losing a life)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
+
 
     if isGoalReached then
         subgoal = agent:pick_subgoal(screen)
     end
 
+    screen_cropped = screen:clone()
+    screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+    screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    
     -- display screen
-    image.display({image=screen, win=win})
+    image.display({image=screen_cropped, win=win})
 
     -- create gd image from tensor
     jpg = image.compressJPG(screen:squeeze(), 100)
