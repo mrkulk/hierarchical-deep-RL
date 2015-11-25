@@ -1,3 +1,4 @@
+slurm_logs
 dqn/*.png
 *~
 torch
