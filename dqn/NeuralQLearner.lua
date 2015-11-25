@@ -198,6 +198,7 @@ function nql:getQUpdate(args)
     a = args.a
     r = args.r
     s2 = args.s2
+    subgoals2 = args.subgoals2
     subgoals = args.subgoals
     term = args.term
 
@@ -215,7 +216,7 @@ function nql:getQUpdate(args)
     end
 
     -- Compute max_a Q(s_2, a).
-    q2_max = target_q_net:forward({s2, subgoals}):float():max(2)
+    q2_max = target_q_net:forward({s2, subgoals2}):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
@@ -256,10 +257,10 @@ function nql:qLearnMinibatch()
     -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
     assert(self.transitions:size() > self.minibatch_size)
 
-    local s, a, r, s2, term, subgoals = self.transitions:sample(self.minibatch_size)
+    local s, a, r, s2, term, subgoals, subgoals2 = self.transitions:sample(self.minibatch_size)
 
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
-        term=term, subgoals = subgoals, update_qmax=true}
+        term=term, subgoals = subgoals, subgoals2=subgoals2, update_qmax=true}
 
     -- zero gradients of parameters
     self.dw:zero()
@@ -387,9 +388,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self.r_max = math.max(self.r_max, reward)
     end
 
-    self.transitions:add_recent_state(state, terminal) -- TODO check
+    self.transitions:add_recent_state(state, terminal, subgoal)  
 
-    local currentFullState = self.transitions:get_recent()
+    -- local currentFullState = self.transitions:get_recent()
 
     --Store transition s, a, r, s'
     if self.lastState and not testing then
@@ -401,7 +402,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self:sample_validation_data()
     end
 
-    curState= self.transitions:get_recent()
+    curState, subgoal = self.transitions:get_recent()
     curState = curState:resize(1, unpack(self.input_dims))
 
     -- Select action

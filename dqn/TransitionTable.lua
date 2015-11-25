@@ -74,10 +74,13 @@ function trans:__init(args)
     self.buf_s      = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_subgoal = torch.zeros(self.bufferSize, args.subgoal_dims)
+    self.buf_subgoal2 = torch.zeros(self.bufferSize, args.subgoal_dims)
+    
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
         self.gpu_s2 = self.buf_s2:float():cuda()
         self.gpu_subgoal = self.buf_subgoal:float():cuda()
+        self.gpu_subgoal2 = self.buf_subgoal2:float():cuda()
     end
 end
 
@@ -104,10 +107,11 @@ function trans:fill_buffer()
     self.buf_ind = 1
     local ind
     for buf_ind=1,self.bufferSize do
-        local s, a, r, s2, term, subgoal = self:sample_one(1)
+        local s, a, r, s2, term, subgoal, subgoal2 = self:sample_one(1)
         self.buf_s[buf_ind]:copy(s)
         self.buf_a[buf_ind] = a
         self.buf_subgoal[buf_ind] = subgoal
+        self.buf_subgoal2[buf_ind] = subgoal2
         self.buf_r[buf_ind] = r
         self.buf_s2[buf_ind]:copy(s2)
         self.buf_term[buf_ind] = term
@@ -118,6 +122,7 @@ function trans:fill_buffer()
         self.gpu_s:copy(self.buf_s)
         self.gpu_s2:copy(self.buf_s2)
         self.gpu_subgoal:copy(self.buf_subgoal)
+        self.gpu_subgoal2:copy(self.buf_subgoal2) 
     end
 end
 
@@ -164,23 +169,24 @@ function trans:sample(batch_size)
     self.buf_ind = self.buf_ind+batch_size
     local range = {{index, index+batch_size-1}}
 
-    local buf_s, buf_s2, buf_a, buf_r, buf_term, buf_subgoal = self.buf_s, self.buf_s2,
-        self.buf_a, self.buf_r, self.buf_term, self.buf_subgoal
+    local buf_s, buf_s2, buf_a, buf_r, buf_term, buf_subgoal, buf_subgoal2 = self.buf_s, self.buf_s2,
+        self.buf_a, self.buf_r, self.buf_term, self.buf_subgoal, self.buf_subgoal2
     if self.gpu and self.gpu >=0  then
         buf_s = self.gpu_s
         buf_s2 = self.gpu_s2
         buf_subgoal = self.gpu_subgoal
+        buf_subgoal2 = self.gpu_subgoal2 
     end
 
-    return buf_s[range], buf_a[range], buf_r[range], buf_s2[range], buf_term[range], buf_subgoal[range]
+    return buf_s[range], buf_a[range], buf_r[range], buf_s2[range], buf_term[range], buf_subgoal[range], buf_subgoal2[range]
 end
 
 
 function trans:concatFrames(index, use_recent)
     if use_recent then
-        s, t = self.recent_s, self.recent_t
+        s, t, subgoal = self.recent_s, self.recent_t, self.recent_subgoal[self.histLen] 
     else
-        s, t = self.s, self.t
+        s, t, subgoal = self.s, self.t, self.subgoal[index]
     end
 
     local fullstate = s[1].new()
@@ -216,7 +222,7 @@ function trans:concatFrames(index, use_recent)
         fullstate[i]:copy(s[index+self.histIndices[i]-1])
     end
 
-    return fullstate
+    return fullstate, subgoal
 end
 
 
@@ -264,15 +270,16 @@ end
 
 function trans:get_recent()
     -- Assumes that the most recent state has been added, but the action has not
-    return self:concatFrames(1, true):float():div(255)
+    local fullstate, subgoal = self:concatFrames(1,true)
+    return fullstate:float():div(255), subgoal
 end
 
 
 function trans:get(index)
-    local s = self:concatFrames(index)
-    local s2 = self:concatFrames(index+1)
+    local s, subgoal = self:concatFrames(index)
+    local s2, subgoal2 = self:concatFrames(index+1)
     local ar_index = index+self.recentMemSize-1
-    return s, self.a[ar_index], self.r[ar_index], s2, self.t[ar_index+1], self.subgoal[ar_index]
+    return s, self.a[ar_index], self.r[ar_index], s2, self.t[ar_index+1], self.subgoal[ar_index], self.subgoal[ar_index+1]
 end
 
 
@@ -306,16 +313,19 @@ function trans:add(s, a, r, term, subgoal)
 end
 
 
-function trans:add_recent_state(s, term)
+function trans:add_recent_state(s, term, subgoal)
     local s = s:clone():float():mul(255):byte()
+    local subgoal = subgoal:clone()
     if #self.recent_s == 0 then
         for i=1,self.recentMemSize do
             table.insert(self.recent_s, s:clone():zero())
             table.insert(self.recent_t, 1)
+            table.insert(self.recent_subgoal, subgoal:clone():zero())
         end
     end
 
     table.insert(self.recent_s, s)
+    table.insert(self.recent_subgoal, subgoal)
     if term then
         table.insert(self.recent_t, 1)
     else
@@ -326,6 +336,7 @@ function trans:add_recent_state(s, term)
     if #self.recent_s > self.recentMemSize then
         table.remove(self.recent_s, 1)
         table.remove(self.recent_t, 1)
+        table.remove(self.recent_subgoal, 1)
     end
 end
 
@@ -406,10 +417,12 @@ function trans:read(file)
     self.buf_s      = torch.ByteTensor(self.bufferSize, self.stateDim * self.histLen):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, self.stateDim * self.histLen):fill(0)
     self.buf_subgoal = torch.zeros(self.bufferSize, self.subgoal_dims)
+    self.buf_subgoal2 = torch.zeros(self.bufferSize, self.subgoal_dims)
 
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
         self.gpu_s2 = self.buf_s2:float():cuda()
         self.gpu_subgoal = self.buf_subgoal:float():cuda()
+        self.gpu_subgoal2 = self.buf_subgoal2:float():cuda() 
     end
 end
