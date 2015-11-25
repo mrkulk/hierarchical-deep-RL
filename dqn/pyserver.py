@@ -7,7 +7,7 @@ import copy
 import sys
 import json, pdb
 
-port = "5555"
+port = "5550"
 if len(sys.argv) > 1:
     port =  sys.argv[1]
     int(port)
@@ -35,7 +35,7 @@ class Recognizer:
 		diff[indxs] = 255
 		mean_y = np.sum(indxs[0]) / np.shape(indxs[0])[0]
 		mean_x = np.sum(indxs[1]) / np.shape(indxs[1])[0]
-		return (mean_x, mean_y)
+		return (mean_y, mean_x) #flipped co-ords due to numpy blob detect
 
 	def template_detect(self, img, id):
 		template = cv2.imread('templates/' + id + '.png')
@@ -78,6 +78,7 @@ class Recognizer:
 
 		objects_list.append([objects['man'][0], objects['man'][1]] + self.get_onehot(self.map['man']))
 		for obj, val in objects.items():
+			# print(obj, val)
 			if obj is not 'man':
 				if type(val) is not type(1):
 					if type(val[0]) == np.int64:
@@ -85,7 +86,6 @@ class Recognizer:
 					else:
 						for i in range(np.shape(val[0])[0]):
 							objects_list.append([val[0][i], val[1][i]] + self.get_onehot(self.map[obj]))
-		
 		#process objects and pad with zeros to ensure fixed length state dim
 		fill_objects = 8 - len(objects_list)
 		for j in range(fill_objects):
@@ -111,6 +111,7 @@ def unit_test():
     img_rgb = img_rgb[30:,:,:]
     coords = rec.get(img_rgb)
     objects = rec.process_objects(coords)
+    pdb.set_trace()
     img = rec.drawbbox(img_rgb, coords)
     show(img)
 

@@ -3,3 +3,4 @@ dqn/*.png
 torch
 dqn/*.t7
 .DS_Store
+gifs

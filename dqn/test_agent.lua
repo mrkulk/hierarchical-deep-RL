@@ -37,6 +37,8 @@ cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 cmd:option('-gif_file', '', 'GIF path to write session screens')
 cmd:option('-csv_file', '', 'CSV path to write session data')
+cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
+cmd:option('-subgoal_nhid', 50, '')
 
 cmd:text()
 
@@ -76,16 +78,23 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
+subgoal = agent:pick_subgoal(screen, 3)
+print('Subgoal:', subgoal)
+
 -- play one episode (game)
 while not terminal do
     -- if action was chosen randomly, Q-value is 0
     agent.bestq = 0
     
     -- choose the best action
-    local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 1)
 
     -- play game in test mode (episodes don't end when losing a life)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
+
+    if isGoalReached then
+        subgoal = agent:pick_subgoal(screen)
+    end
 
     -- display screen
     image.display({image=screen, win=win})

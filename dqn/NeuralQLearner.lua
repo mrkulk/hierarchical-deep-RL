@@ -16,7 +16,7 @@ local zmq = require "lzmq"
 ctx = zmq.context()
 skt = ctx:socket{zmq.REQ,
     linger = 0, rcvtimeo = 1000;
-    connect = "tcp://127.0.0.1:5555";
+    connect = "tcp://127.0.0.1:5550";
 }
 
 function nql:__init(args)
@@ -333,9 +333,10 @@ function nql:get_objects(rawstate)
     return object_list --nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
 end
 
-function nql:pick_subgoal(rawstate)
+function nql:pick_subgoal(rawstate, oid)
     local objects = self:get_objects(rawstate)
-    local indxs = torch.random(2, #objects) -- first is the agent
+    local indxs
+    indxs = oid or torch.random(2, #objects) -- first is the agent
     return objects[indxs]
 end
 
@@ -352,16 +353,24 @@ end
 function nql:intrinsic_reward(subgoal, objects)
     -- return reward based on distance or 0/1 towards sub-goal
     local agent = objects[1]
-    local reward = -math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    -- print(subgoal, reward)
+    local reward
+    if self.lastSubgoal then
+        local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
+        local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
+        reward = dist2 - dist1
+    else
+        reward = 0
+    end
     return reward
 end
+
 
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
         reward = -500
     end
+
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
@@ -419,6 +428,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     self.lastAction = actionIndex
     self.lastTerminal = terminal
     self.lastSubgoal = subgoal
+    self.lastobjects = objects
 
     if self.target_q and self.numSteps % self.target_q == 1 then
         self.target_network = self.network:clone()
