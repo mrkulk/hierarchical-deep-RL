@@ -44,6 +44,8 @@ class Recognizer:
 		res = cv2.matchTemplate(img,template,cv2.TM_CCOEFF_NORMED)
 		threshold = 0.8
 		loc = np.where( res >= threshold)
+                loc[0].setflags(write=True)
+                loc[1].setflags(write=True)
 		for i in range(np.shape(loc[0])[0]):
 			loc[0][i] += h/2; loc[1][i] += w/2
 		return loc, w, h
