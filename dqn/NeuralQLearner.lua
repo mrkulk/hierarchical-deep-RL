@@ -342,6 +342,7 @@ function nql:pick_subgoal(rawstate, oid)
     while objects[indxs]:sum() == 0 do -- object absent
         indxs = torch.random(2, #objects) -- first is the agent
     end
+    -- indxs = 4
     return objects[indxs]
 end
 
@@ -375,7 +376,7 @@ end
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
-        reward = -500
+        reward = -100
     end
 
     local state = self:preprocess(rawstate):float()
@@ -383,7 +384,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local goal_reached = self:isGoalReached(subgoal, objects)
 
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
-    reward = reward - 1 -- penalize for just standing
+    -- reward = reward - 0.05 -- penalize for just standing
     if goal_reached then
         reward = reward + 10
     end
