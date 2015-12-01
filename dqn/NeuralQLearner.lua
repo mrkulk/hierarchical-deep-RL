@@ -297,19 +297,21 @@ end
 
 
 function nql:sample_validation_data()
-    local s, a, r, s2, term, subgoals = self.transitions:sample(self.valid_size)
+    local s, a, r, s2, term, subgoals, subgoals2 = self.transitions:sample(self.valid_size)
     self.valid_s    = s:clone()
     self.valid_a    = a:clone()
     self.valid_r    = r:clone()
     self.valid_s2   = s2:clone()
     self.valid_term = term:clone()
     self.valid_subgoals = subgoals:clone()
+    self.valid_subgoals2 = subgoals2:clone()
 end
 
 
 function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term, subgoals = self.valid_subgoals}
+        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term, subgoals = self.valid_subgoals,
+         subgoals2 = self.valid_subgoals2}
 
     self.v_avg = self.q_max * q2_max:mean()
     self.tderr_avg = delta:clone():abs():mean()
