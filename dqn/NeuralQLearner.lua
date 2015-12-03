@@ -378,7 +378,7 @@ end
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
-        reward = -100
+        reward = -500
     end
 
     local state = self:preprocess(rawstate):float()
@@ -386,7 +386,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local goal_reached = self:isGoalReached(subgoal, objects)
 
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
-    -- reward = reward - 0.05 -- penalize for just standing
+    reward = reward - 0.1 -- penalize for just standing
     if goal_reached then
         reward = reward + 10
     end

@@ -78,7 +78,7 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 7)
+subgoal = agent:pick_subgoal(screen, 3)
 print('Subgoal:', subgoal)
 
 -- play one episode (game)
@@ -87,14 +87,14 @@ while not terminal do
     agent.bestq = 0
     
     -- choose the best action
-    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
+    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
 
     -- play game in test mode (episodes don't end when losing a life)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
 
 
     if isGoalReached then
-        subgoal = agent:pick_subgoal(screen)
+        subgoal = agent:pick_subgoal(screen, 4)
     end
 
     screen_cropped = screen:clone()
