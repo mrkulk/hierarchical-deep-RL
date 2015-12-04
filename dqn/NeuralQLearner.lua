@@ -412,9 +412,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- local currentFullState = self.transitions:get_recent()
 
     --Store transition s, a, r, s'
-    if self.lastState and not testing then
+    if self.lastState and not testing and self.lastSubgoal then
         self.transitions:add(self.lastState, self.lastAction, reward,
-                             self.lastTerminal, self.lastSubgoal, priority)
+                            self.lastTerminal, self.lastSubgoal, priority)
     end
 
     if self.numSteps == self.learn_start+1 and not testing then
