@@ -351,7 +351,7 @@ end
 function nql:isGoalReached(subgoal, objects)
     local agent = objects[1]
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 10 then
+    if dist < 15 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
         return true
     else
@@ -363,7 +363,7 @@ function nql:intrinsic_reward(subgoal, objects)
     -- return reward based on distance or 0/1 towards sub-goal
     local agent = objects[1]
     local reward
-    if self.lastSubgoal then
+    if false and self.lastSubgoal then
         local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
         local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
         reward = dist2 - dist1
@@ -371,6 +371,9 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
     -- print(reward)
+    if reward > 20 then
+        -- gandu()
+    end
     return reward
 end
 
@@ -378,7 +381,7 @@ end
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
-        reward = -500
+        reward = -100
     end
 
     local state = self:preprocess(rawstate):float()
@@ -386,10 +389,11 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local goal_reached = self:isGoalReached(subgoal, objects)
 
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
-    reward = reward - 0.1 -- penalize for just standing
+    reward = reward - 0.01 -- penalize for just standing
     if goal_reached then
-        reward = reward + 10
+        reward = reward + 50
     end
+
 
     local curState
 
@@ -443,7 +447,11 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     self.lastState = state:clone()
     self.lastAction = actionIndex
     self.lastTerminal = terminal
-    self.lastSubgoal = subgoal
+    if not terminal then
+        self.lastSubgoal = subgoal
+    else
+        self.lastSubgoal = nil
+    end
     self.lastobjects = objects
 
     if self.target_q and self.numSteps % self.target_q == 1 then
