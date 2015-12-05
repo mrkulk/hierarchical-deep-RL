@@ -143,7 +143,8 @@ while True:
     # show(img)  
     objects_list = copy.deepcopy(objects_list_cache)
     objects_list2 = rec.process_objects(coords)
-    objects_list[0] = objects_list2[0]
+    #agent and skull is dynamic. everything else is static. TODO for key
+    objects_list[0] = objects_list2[0] 
     objects_list[1] = objects_list2[1]
     if objects_list[1][0] == 0 and objects_list[1][1] == 0:
     	objects_list[1][3] = 0
