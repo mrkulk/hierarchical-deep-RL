@@ -74,7 +74,6 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork()
-
     -- check whether there is a network file
     local network_function
     if not (type(self.network) == 'string') then
@@ -152,17 +151,26 @@ function nql:__init(args)
     self.q_max = 1
     self.r_max = 1
 
+    self.network_real = self.network:clone()
+
     self.w, self.dw = self.network:getParameters()
     self.dw:zero()
-
     self.deltas = self.dw:clone():fill(0)
-
     self.tmp= self.dw:clone():fill(0)
     self.g  = self.dw:clone():fill(0)
     self.g2 = self.dw:clone():fill(0)
 
+    self.w_real, self.dw_real = self.network_real:getParameters()
+    self.dw_real:zero()
+    self.deltas_real = self.dw_real:clone():fill(0)
+    self.tmp_real= self.dw_real:clone():fill(0)
+    self.g_real  = self.dw_real:clone():fill(0)
+    self.g2_real = self.dw_real:clone():fill(0)
+
+
     if self.target_q then
         self.target_network = self.network:clone()
+        self.target_network_real = self.network_real:clone()
     end
 end
 
@@ -172,9 +180,17 @@ function nql:reset(state)
         return
     end
     self.best_network = state.best_network
+    self.best_network_real = state.best_network_real
+    
     self.network = state.model
+    self.network_real = state.model_real
+    
     self.w, self.dw = self.network:getParameters()
     self.dw:zero()
+
+    self.w_real, self.dw_real = self.network_real:getParameters()
+    self.dw_real:zero()
+    
     self.numSteps = 0
     print("RESET STATE SUCCESFULLY")
 end
@@ -209,13 +225,14 @@ function nql:getQUpdate(args)
     term = term:clone():float():mul(-1):add(1)
 
     local target_q_net
-    if self.target_q then
-        target_q_net = self.target_network
+    if args.target_q then
+        target_q_net = args.target_network
     else
-        target_q_net = self.network
+        target_q_net = args.network
     end
 
     -- Compute max_a Q(s_2, a).
+    -- print(s2:size(), subgoals2:size())
     q2_max = target_q_net:forward({s2, subgoals2}):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
@@ -231,7 +248,7 @@ function nql:getQUpdate(args)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = self.network:forward({s, subgoals}):float()
+    local q_all = args.network:forward({s, subgoals}):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -254,25 +271,33 @@ function nql:getQUpdate(args)
 end
 
 
-function nql:qLearnMinibatch()
+function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas, external_r)
     -- Perform a minibatch Q-learning update:
     -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
     assert(self.transitions:size() > self.minibatch_size)
 
     local s, a, r, s2, term, subgoals, subgoals2 = self.transitions:sample(self.minibatch_size)
 
+    if external_r then
+        r = r[{{},1}] --extract external reward
+        subgoals[{{},{1,self.subgoal_dims}}] = 0
+        subgoals2[{{},{1,self.subgoal_dims}}] = 0
+    else
+        r = r[{{},2}] --external + intrinsic reward 
+    end
+
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
-        term=term, subgoals = subgoals, subgoals2=subgoals2, update_qmax=true}
+        term=term, subgoals = subgoals, subgoals2=subgoals2, network = network, update_qmax=true, target_network = target_network}
 
     -- zero gradients of parameters
-    self.dw:zero()
+    dw:zero()
 
     -- get new gradient
     -- print(subgoals)
-    self.network:backward({s, subgoals}, targets)
+    network:backward({s, subgoals}, targets)
 
     -- add weight cost to gradient
-    self.dw:add(-self.wc, self.w)
+    dw:add(-self.wc, w)
 
     -- compute linearly annealed learning rate
     local t = math.max(0, self.numSteps - self.learn_start)
@@ -281,18 +306,18 @@ function nql:qLearnMinibatch()
     self.lr = math.max(self.lr, self.lr_end)
 
     -- use gradients
-    self.g:mul(0.95):add(0.05, self.dw)
-    self.tmp:cmul(self.dw, self.dw)
-    self.g2:mul(0.95):add(0.05, self.tmp)
-    self.tmp:cmul(self.g, self.g)
-    self.tmp:mul(-1)
-    self.tmp:add(self.g2)
-    self.tmp:add(0.01)
-    self.tmp:sqrt()
+    g:mul(0.95):add(0.05, dw)
+    tmp:cmul(dw, dw)
+    g2:mul(0.95):add(0.05, tmp)
+    tmp:cmul(g, g)
+    tmp:mul(-1)
+    tmp:add(g2)
+    tmp:add(0.01)
+    tmp:sqrt()
 
     -- accumulate update
-    self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
-    self.w:add(self.deltas)
+    deltas:mul(0):addcdiv(self.lr, dw, tmp)
+    w:add(deltas)
 end
 
 
@@ -310,8 +335,8 @@ end
 
 function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term, subgoals = self.valid_subgoals,
-         subgoals2 = self.valid_subgoals2}
+        a=self.valid_a, r=self.valid_r[{{},1}], s2=self.valid_s2, term=self.valid_term, subgoals = self.valid_subgoals,
+         subgoals2 = self.valid_subgoals2, network = self.network_real, target_network = self.target_network_real}
 
     self.v_avg = self.q_max * q2_max:mean()
     self.tderr_avg = delta:clone():abs():mean()
@@ -392,12 +417,11 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
     local goal_reached = self:isGoalReached(subgoal, objects)
-    reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
+    local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
     reward = reward - 0.01 -- penalize for just standing
     if goal_reached then
         reward = reward + 50
     end
-
 
     local curState
 
@@ -417,7 +441,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     --Store transition s, a, r, s'
     if self.lastState and not testing and self.lastSubgoal then
-        self.transitions:add(self.lastState, self.lastAction, reward,
+        self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
                             self.lastTerminal, self.lastSubgoal, priority)
     end
 
@@ -440,7 +464,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if self.numSteps > self.learn_start and not testing and
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
-            self:qLearnMinibatch()
+            self:qLearnMinibatch(self.network, self.target_network, self.dw, self.w, self.g, self.g2, self.tmp, self.deltas, false)
+            self:qLearnMinibatch(self.network_real,  self.target_network_real, self.dw_real, self.w_real, self.g_real, self.g2_real, self.tmp_real, self.deltas_real, true) 
         end
     end
 
@@ -460,6 +485,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     if self.target_q and self.numSteps % self.target_q == 1 then
         self.target_network = self.network:clone()
+        self.target_network_real = self.network_real:clone() 
     end
 
     if not terminal then
@@ -489,7 +515,7 @@ function nql:greedy(state, subgoal)
         assert(false, 'Input must be at least 3D')
         state = state:resize(1, state:size(1), state:size(2))
     end
-    subgoal = torch.reshape(subgoal, 1, self.subgoal_dims)
+    subgoal = torch.reshape(subgoal, 1, self.subgoal_dims*9)
     if self.gpu >= 0 then
         state = state:cuda()
         subgoal = subgoal:cuda()
@@ -528,26 +554,6 @@ function nql:createNetwork()
     mlp:add(nn.Linear(n_hid, self.n_actions))
 
     return mlp
-end
-
-
-function nql:_loadNet()
-    local net = self.network
-    if self.gpu then
-        net:cuda()
-    else
-        net:float()
-    end
-    return net
-end
-
-
-function nql:init(arg)
-    self.actions = arg.actions
-    self.n_actions = #self.actions
-    self.network = self:_loadNet()
-    -- Generate targets.
-    self.transitions:empty()
 end
 
 

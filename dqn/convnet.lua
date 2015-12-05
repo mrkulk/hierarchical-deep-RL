@@ -42,7 +42,7 @@ function create_network(args)
     -- join vectors
 
     local subgoal_proc = nn.Sequential()
-                            :add(nn.Linear(args.subgoal_dims, args.subgoal_nhid))
+                            :add(nn.Linear(args.subgoal_dims*9, args.subgoal_nhid))
                             :add(nn.Sigmoid())
                             :add(nn.Linear(args.subgoal_nhid,args.subgoal_nhid))
                             :add(nn.Sigmoid())
@@ -57,7 +57,7 @@ function create_network(args)
 
 
     -- fully connected layer    
-    full_net:add(nn.Linear(nel+args.subgoal_nhid*9, args.n_hid[1]))
+    full_net:add(nn.Linear(nel+args.subgoal_nhid, args.n_hid[1]))
     full_net:add(args.nl())
     local last_layer_size = args.n_hid[1]
 

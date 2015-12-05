@@ -54,7 +54,7 @@ function trans:__init(args)
 
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
-    self.r = torch.zeros(self.maxSize)
+    self.r = torch.zeros(self.maxSize,2)
     self.subgoal_dims = args.subgoal_dims*9 --TODO (total number of objects)
     self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims) 
     self.t = torch.ByteTensor(self.maxSize):fill(0)
@@ -69,12 +69,12 @@ function trans:__init(args)
 
     local s_size = self.stateDim*histLen
     self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
-    self.buf_r      = torch.zeros(self.bufferSize)
+    self.buf_r      = torch.zeros(self.bufferSize,2)
     self.buf_term   = torch.ByteTensor(self.bufferSize):fill(0)
     self.buf_s      = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, s_size):fill(0)
-    self.buf_subgoal = torch.zeros(self.bufferSize, args.subgoal_dims)
-    self.buf_subgoal2 = torch.zeros(self.bufferSize, args.subgoal_dims)
+    self.buf_subgoal = torch.zeros(self.bufferSize, self.subgoal_dims)
+    self.buf_subgoal2 = torch.zeros(self.bufferSize, self.subgoal_dims)
     
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
@@ -399,7 +399,7 @@ function trans:read(file)
 
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
-    self.r = torch.zeros(self.maxSize)
+    self.r = torch.zeros(self.maxSize, 2)
     self.t = torch.ByteTensor(self.maxSize):fill(0)
     self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims)
     self.action_encodings = torch.eye(self.numActions)
@@ -412,7 +412,7 @@ function trans:read(file)
     self.recent_subgoal = {}
 
     self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
-    self.buf_r      = torch.zeros(self.bufferSize)
+    self.buf_r      = torch.zeros(self.bufferSize, 2)
     self.buf_term   = torch.ByteTensor(self.bufferSize):fill(0)
     self.buf_s      = torch.ByteTensor(self.bufferSize, self.stateDim * self.histLen):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, self.stateDim * self.histLen):fill(0)
