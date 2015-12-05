@@ -177,7 +177,7 @@ while step < opt.steps do
         total_reward = total_reward/math.max(1, nepisodes)
 
         if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            agent.best_network = agent.network:clone()
+            agent.best_network_real = agent.network_real:clone()
         end
 
         if agent.v_avg then
@@ -211,10 +211,10 @@ while step < opt.steps do
             agent.valid_s2, agent.valid_term
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = nil, nil, nil, nil, nil, nil, nil
-        local w, dw, g, g2, delta, delta2, deltas, tmp = agent.w, agent.dw,
-            agent.g, agent.g2, agent.delta, agent.delta2, agent.deltas, agent.tmp
-        agent.w, agent.dw, agent.g, agent.g2, agent.delta, agent.delta2,
-            agent.deltas, agent.tmp = nil, nil, nil, nil, nil, nil, nil, nil
+        local w_real, dw_real, g_real, g2_real, delta, delta2, deltas_real, tmp_real = agent.w_real, agent.dw_real,
+            agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas_real, agent.tmp_real
+        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2,
+            agent.deltas_real, agent.tmp_real = nil, nil, nil, nil, nil, nil, nil, nil
 
         local filename = opt.name
         if opt.save_versions > 0 then
@@ -222,8 +222,8 @@ while step < opt.steps do
         end
         filename = filename
         torch.save(filename .. ".t7", {agent = agent,
-                                model = agent.network,
-                                best_model = agent.best_network,
+                                model = agent.network_real,
+                                best_model = agent.best_network_real,
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
                                 episode_counts = episode_counts,
@@ -233,13 +233,13 @@ while step < opt.steps do
                                 qmax_history = qmax_history,
                                 arguments=opt})
         if opt.saveNetworkParams then
-            local nets = {network=w:clone():float()}
+            local nets = {network=w_real:clone():float()}
             torch.save(filename..'.params.t7', nets, 'ascii')
         end
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = s, a, r, s2, term
-        agent.w, agent.dw, agent.g, agent.g2, agent.delta, agent.delta2,
-            agent.deltas, agent.tmp = w, dw, g, g2, delta, delta2, deltas, tmp
+        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2,
+            agent.deltas_real, agent.tmp_real = w_real, dw_real, g_real, g2_real, delta, delta2, deltas, tmp_real
         print('Saved:', filename .. '.t7')
         io.flush()
         collectgarbage()
