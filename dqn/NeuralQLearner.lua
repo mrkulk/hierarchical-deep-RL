@@ -344,14 +344,19 @@ function nql:pick_subgoal(rawstate, oid)
     while objects[indxs]:sum() == 0 do -- object absent
         indxs = torch.random(2, #objects) -- first is the agent
     end
-    -- indxs = 4
-    return objects[indxs]
+    -- concatenate subgoal with objects (input into network)
+    local subg = objects[indxs]
+    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
+    for i = 1,#objects do
+        ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
+    end
+    return torch.cat(subg, ftrvec)
 end
 
 function nql:isGoalReached(subgoal, objects)
     local agent = objects[1]
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 15 then --just a small threshold to indicate when agent meets subgoal (euc dist)
+    if dist < 13 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
         return true
     else
@@ -387,7 +392,6 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
     local goal_reached = self:isGoalReached(subgoal, objects)
-
     reward = reward + self:intrinsic_reward(subgoal, objects) --TODO: make sure scaling is fine
     reward = reward - 0.01 -- penalize for just standing
     if goal_reached then

@@ -57,7 +57,7 @@ function create_network(args)
 
 
     -- fully connected layer    
-    full_net:add(nn.Linear(nel+args.subgoal_nhid, args.n_hid[1]))
+    full_net:add(nn.Linear(nel+args.subgoal_nhid*9, args.n_hid[1]))
     full_net:add(args.nl())
     local last_layer_size = args.n_hid[1]
 
