@@ -420,7 +420,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
     reward = reward - 0.01 -- penalize for just standing
     if goal_reached then
-        reward = reward + 50
+        intrinsic_reward = intrinsic_reward + 50
     end
 
     local curState
