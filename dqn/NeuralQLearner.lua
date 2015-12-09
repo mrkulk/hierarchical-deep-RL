@@ -393,7 +393,7 @@ function nql:intrinsic_reward(subgoal, objects)
     -- return reward based on distance or 0/1 towards sub-goal
     local agent = objects[1]
     local reward
-    if false and self.lastSubgoal then
+    if self.lastSubgoal then
         local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
         local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
         reward = dist2 - dist1
@@ -434,6 +434,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if self.rescale_r then
         self.r_max = math.max(self.r_max, reward)
     end
+
+    --print(reward, intrinsic_reward)
 
     self.transitions:add_recent_state(state, terminal, subgoal)  
 
@@ -500,6 +502,14 @@ function nql:eGreedy(state, testing_ep, subgoal)
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+
+    -- if testing, zero out subgoals
+    if testing_ep then
+	subgoal = subgoal:clone()
+        subgoal[{{1,self.subgoal_dims}}] = 0
+    end
+       
+
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)

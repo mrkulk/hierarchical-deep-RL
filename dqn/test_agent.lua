@@ -78,8 +78,8 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 3)
-print('Subgoal:', subgoal)
+subgoal = agent:pick_subgoal(screen, 2)
+--print('Subgoal:', subgoal)
 
 -- play one episode (game)
 while not terminal do
