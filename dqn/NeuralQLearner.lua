@@ -30,6 +30,10 @@ function nql:__init(args)
     self.subgoal_dims = args.subgoal_dims
     self.subgoal_nhid = args.subgoal_nhid
 
+    -- to keep track of stats
+    self.subgoal_success = {}
+    self.subgoal_total = {}
+
     --- epsilon annealing
     self.ep_start   = args.ep or 1
     self.ep         = self.ep_start -- Exploration probability.
@@ -376,14 +380,25 @@ function nql:pick_subgoal(rawstate, oid)
     for i = 1,#objects do
         ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
     end
+
+    -- add stats
+    self.subgoal_total[subg] = self.subgoal_total[subg] or 0
+    self.subgoal_total[subg] = self.subgoal_total[subg] + 1
+
     return torch.cat(subg, ftrvec)
 end
 
 function nql:isGoalReached(subgoal, objects)
     local agent = objects[1]
+
+    -- IMP: remember that subgoal includes both subgoal and all objects
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
     if dist < 13 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
+        -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
+        -- print(subgoal, indexTensor)
+        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] or 0
+        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] + 1
         return true
     else
         return false
@@ -571,4 +586,15 @@ end
 function nql:report()
     print(get_weight_norms(self.network))
     print(get_grad_norms(self.network))
+
+    -- print stats on subgoal success rates
+    for subg, val in pairs(self.subgoal_total) do
+        if self.subgoal_success[subg] then 
+            print("Subgoal " , subg , ' : ',  self.subgoal_success[subg]/val)
+        else
+            print("Subgoal " , subg ,  ' : ')
+        end
+    end
+    self.subgoal_success = {}
+    self.subgoal_total = {}
 end
