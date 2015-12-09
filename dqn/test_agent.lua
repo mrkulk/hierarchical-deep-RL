@@ -39,6 +39,8 @@ cmd:option('-gif_file', '', 'GIF path to write session screens')
 cmd:option('-csv_file', '', 'CSV path to write session data')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
+cmd:option('-port', 5550, 'Port for zmq connection')
+
 
 cmd:text()
 
@@ -78,7 +80,7 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 2)
+subgoal = agent:pick_subgoal(screen, 3)
 --print('Subgoal:', subgoal)
 
 -- play one episode (game)

@@ -4,6 +4,7 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 require 'image'
+require 'torch'
 if not dqn then
     require 'initenv'
 end
@@ -16,7 +17,7 @@ local zmq = require "lzmq"
 ctx = zmq.context()
 skt = ctx:socket{zmq.REQ,
     linger = 0, rcvtimeo = 1000;
-    connect = "tcp://127.0.0.1:5550";
+    connect = "tcp://127.0.0.1:" .. ZMQ_PORT;
 }
 
 function nql:__init(args)
@@ -353,7 +354,7 @@ end
 
 -- returns a table of num_objects x vectorized object reps
 function nql:get_objects(rawstate)
-    image.save('tmp.png', rawstate[1])
+    image.save('tmp_' .. ZMQ_PORT .. '.png', rawstate[1])
     skt:send("")
     msg = skt:recv()
     while msg == nil do

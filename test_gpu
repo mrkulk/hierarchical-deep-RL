@@ -8,8 +8,14 @@ if [ -z "$2" ]
   then echo "Please provide the pretrained network file, e.g.  ./watch_pretrained breakout DQN3_0_1_breakout_FULL_Y.t7"; exit 0
 fi
 
+if [ -z "$3" ]
+  then echo "Please provide the zmq port for testing"; exit 0
+fi
+
+
 ENV=$1
 NETWORK=$2
+PORT=$3
 FRAMEWORK="alewrap"
 
 game_path=$PWD"/roms/"
@@ -41,7 +47,7 @@ random_starts=30
 pool_frms="type="$pool_frms_type",size="$pool_frms_size
 num_threads=4
 
-args="-framework $FRAMEWORK -game_path $game_path -name $agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads -network $NETWORK -gif_file $gif_file"
+args="-framework $FRAMEWORK -port $PORT -game_path $game_path -name $agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads -network $NETWORK -gif_file $gif_file"
 echo $args
 
 cd dqn

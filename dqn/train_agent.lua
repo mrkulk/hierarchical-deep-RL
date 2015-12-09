@@ -4,10 +4,6 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 
-if not dqn then
-    require "initenv"
-end
-
 local cmd = torch.CmdLine()
 cmd:text()
 cmd:text('Train Agent in Environment:')
@@ -47,11 +43,19 @@ cmd:option('-gpu', -1, 'gpu flag')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-display_game', false, 'option to display game')
+cmd:option('-port', 5550, 'Port for zmq connection')
 
 
 cmd:text()
 
 local opt = cmd:parse(arg)
+ZMQ_PORT = opt.port
+
+
+if not dqn then
+    require "initenv"
+end
+
 
 print(opt.env_params)
 --- General setup.
@@ -211,10 +215,10 @@ while step < opt.steps do
             agent.valid_s2, agent.valid_term
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = nil, nil, nil, nil, nil, nil, nil
-        local w_real, dw_real, g_real, g2_real, delta, delta2, deltas_real, tmp_real = agent.w_real, agent.dw_real,
-            agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas_real, agent.tmp_real
-        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2,
-            agent.deltas_real, agent.tmp_real = nil, nil, nil, nil, nil, nil, nil, nil
+        local w_real, dw_real, g_real, g2_real, delta, delta2, deltas, deltas_real, tmp_real = agent.w_real, agent.dw_real,
+            agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas, agent.deltas_real, agent.tmp_real
+        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas, 
+            agent.deltas_real, agent.tmp_real = nil, nil, nil, nil, nil, nil, nil, nil, nil
 
         local filename = opt.name
         if opt.save_versions > 0 then
@@ -238,8 +242,8 @@ while step < opt.steps do
         end
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = s, a, r, s2, term
-        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2,
-            agent.deltas_real, agent.tmp_real = w_real, dw_real, g_real, g2_real, delta, delta2, deltas, tmp_real
+        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas,
+            agent.deltas_real, agent.tmp_real = w_real, dw_real, g_real, g2_real, delta, delta2, deltas, deltas_real, tmp_real
         print('Saved:', filename .. '.t7')
         io.flush()
         collectgarbage()

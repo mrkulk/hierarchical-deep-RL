@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -z "$1" ]
-  then echo "Please provide the name of the game, e.g.  ./run_gpu breakout "; exit 0
+  then echo "Please provide the name of the game and a log name and a port, e.g.  ./run_gpu breakout basic1 5000"; exit 0
 fi
 ENV=$1
 FRAMEWORK="alewrap"
@@ -23,7 +23,7 @@ replay_memory=1000000
 eps_end=0.05 #0.1
 eps_endt=50000 #replay_memory
 lr=0.00025
-agent_type="DQN3_0_1"
+agent_type=$2
 preproc_net="\"net_downsample_2x_full_y\""
 agent_name=$agent_type"_"$1"_FULL_Y"
 state_dim=7056
@@ -39,7 +39,7 @@ random_starts=30
 pool_frms="type="$pool_frms_type",size="$pool_frms_size
 num_threads=4
 
-args="-framework $FRAMEWORK -game_path $game_path -name $agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -steps $steps -eval_freq $eval_freq -eval_steps $eval_steps -prog_freq $prog_freq -save_freq $save_freq -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads"
+args="-framework $FRAMEWORK -game_path $game_path -name logs/$agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -steps $steps -eval_freq $eval_freq -eval_steps $eval_steps -prog_freq $prog_freq -save_freq $save_freq -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads -port $3"
 echo $args
 
 cd dqn

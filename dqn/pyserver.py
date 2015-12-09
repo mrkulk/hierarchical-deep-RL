@@ -9,8 +9,7 @@ import json, pdb
 
 port = "5550"
 if len(sys.argv) > 1:
-    port =  sys.argv[1]
-    int(port)
+    port =  int(sys.argv[1])
 
 context = zmq.Context()
 socket = context.socket(zmq.REP)
@@ -135,7 +134,7 @@ while True:
     #  Wait for next request from client
     message = socket.recv()
     # print "Received request: ", message
-    img_rgb = cv2.imread('tmp.png')
+    img_rgb = cv2.imread('tmp_'+str(port)+'.png')
     im_score = img_rgb[15:20, 55:95, :]
     img_rgb = img_rgb[30:,:,:]
     coords = rec.get(img_rgb)
