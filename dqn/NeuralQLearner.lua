@@ -397,8 +397,8 @@ function nql:isGoalReached(subgoal, objects)
         print('subgoal reached!')
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
-        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] or 0
-        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] + 1
+        self.subgoal_success[subgoal[{{1, self.subgoal_dims}}]] = self.subgoal_success[subgoal[{{1, self.subgoal_dims}}]] or 0
+        self.subgoal_success[subgoal[{{1, self.subgoal_dims}}]] = self.subgoal_success[subgoal[{{1, self.subgoal_dims}}]] + 1
         return true
     else
         return false
