@@ -3,6 +3,8 @@ Copyright (c) 2014 Google Inc.
 
 See LICENSE file for full terms of limited license.
 ]]
+require 'xlua'
+require 'optim'
 
 local cmd = torch.CmdLine()
 cmd:text()
@@ -10,6 +12,7 @@ cmd:text('Train Agent in Environment:')
 cmd:text()
 cmd:text('Options:')
 
+cmd:option('-exp_folder', '', 'name of folder where current exp state is being stored')
 cmd:option('-framework', '', 'name of training framework')
 cmd:option('-env', '', 'name of environment to use')
 cmd:option('-game_path', '', 'path to environment file (ROM)')
@@ -42,7 +45,7 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', false, 'option to display game')
+cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 
 
@@ -94,9 +97,14 @@ local win = nil
 
 local subgoal = agent:pick_subgoal(screen)
 
+
+
 while step < opt.steps do
+    xlua.progress(step, opt.steps)
+
     step = step + 1
     local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal)
+
 
     -- game over? get next game!
     if not terminal then
@@ -134,9 +142,19 @@ while step < opt.steps do
 
     if step%1000 == 0 then collectgarbage() end
 
+    -- evaluation
     if step % opt.eval_freq == 0 and step > learn_start then
+        print("Testing ...")
+
+        local cum_reward_ext = 0
+        local cum_reward_tot = 0
+
         screen, reward, terminal = game_env:newGame()
         subgoal = agent:pick_subgoal(screen)
+
+        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
+        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
+        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
 
         total_reward = 0
         nrewards = 0
@@ -145,14 +163,23 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
+            xlua.progress(estep, opt.eval_steps)
+
+            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
+
+
+            cum_reward_tot = cum_reward_tot + reward_tot
+            cum_reward_ext = cum_reward_ext + reward_ext
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
 
             -- display screen
             if opt.display_game then
-                win = image.display({image=screen, win=win})
+                screen_cropped = screen:clone()
+                screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+                screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+                win = image.display({image=screen_cropped, win=win})
             end
 
             if estep%1000 == 0 then collectgarbage() end
@@ -182,6 +209,9 @@ while step < opt.steps do
         local ind = #reward_history+1
         total_reward = total_reward/math.max(1, nepisodes)
 
+        cum_reward_ext = cum_reward_ext / math.max(1,nepisodes)
+        cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
+
         if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
             agent.best_network_real = agent.network_real:clone()
         end
@@ -193,6 +223,16 @@ while step < opt.steps do
         end
         print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
 
+        test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
+        test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
+        test_avg_Q:add{['% Average Q'] = agent.v_avg}
+     
+
+        test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
+        test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
+
+        test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
+      
         reward_history[ind] = total_reward
         reward_counts[ind] = nrewards
         episode_counts[ind] = nepisodes
@@ -204,10 +244,10 @@ while step < opt.steps do
         local training_rate = opt.actrep*opt.eval_freq/time_dif
 
         print(string.format(
-            '\nSteps: %d (frames: %d), reward: %.2f, epsilon: %.2f, lr: %G, ' ..
+            '\nSteps: %d (frames: %d), extrinsic reward: %.2f, total reward (I+E): %.2f, epsilon: %.2f, lr: %G, ' ..
             'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
             'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
-            step, step*opt.actrep, total_reward, agent.ep, agent.lr, time_dif,
+            step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
             training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
             nepisodes, nrewards))
     end

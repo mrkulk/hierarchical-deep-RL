@@ -43,9 +43,9 @@ function create_network(args)
 
     local subgoal_proc = nn.Sequential()
                             :add(nn.Linear(args.subgoal_dims*9, args.subgoal_nhid))
-                            :add(nn.Sigmoid())
+                            :add(nn.ReLU())
                             :add(nn.Linear(args.subgoal_nhid,args.subgoal_nhid))
-                            :add(nn.Sigmoid())
+                            :add(nn.ReLU())
 
     local net_parallel = nn.ParallelTable(2)
     net_parallel:add(net)

@@ -230,7 +230,7 @@ function nql:getQUpdate(args)
     term = term:clone():float():mul(-1):add(1)
 
     local target_q_net
-    if args.target_q then
+    if self.target_q then
         target_q_net = args.target_network
     else
         target_q_net = args.network
@@ -310,15 +310,33 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
                 self.lr_end
     self.lr = math.max(self.lr, self.lr_end)
 
-    -- use gradients
-    g:mul(0.95):add(0.05, dw)
+     --grad normalization
+    -- local max_norm = 1000
+    -- local grad_norm = dw:norm()
+    -- if grad_norm > max_norm then
+    --   local scale_factor = max_norm/grad_norm
+    --   dw:mul(scale_factor)
+    --   if false and grad_norm > 1000 then
+    --       print("Scaling down gradients. Norm:", grad_norm)
+    --   end
+    -- end
+
+    -- use gradients (original)
+    -- g:mul(0.95):add(0.05, dw)
+    -- tmp:cmul(dw, dw)
+    -- g2:mul(0.95):add(0.05, tmp)
+    -- tmp:cmul(g, g)
+    -- tmp:mul(-1)
+    -- tmp:add(g2)
+    -- tmp:add(0.01)
+    -- tmp:sqrt()
+
+    --rmsprop
+    local smoothing_value = 1e-8
     tmp:cmul(dw, dw)
-    g2:mul(0.95):add(0.05, tmp)
-    tmp:cmul(g, g)
-    tmp:mul(-1)
-    tmp:add(g2)
-    tmp:add(0.01)
-    tmp:sqrt()
+    g:mul(0.9):add(0.1, tmp)
+    tmp = torch.sqrt(g)
+    tmp:add(smoothing_value)  --negative learning rate
 
     -- accumulate update
     deltas:mul(0):addcdiv(self.lr, dw, tmp)
@@ -382,8 +400,8 @@ function nql:pick_subgoal(rawstate, oid)
     end
 
     -- add stats
-    self.subgoal_total[subg] = self.subgoal_total[subg] or 0
-    self.subgoal_total[subg] = self.subgoal_total[subg] + 1
+    self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
+    self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
 
     return torch.cat(subg, ftrvec)
 end
@@ -398,8 +416,8 @@ function nql:isGoalReached(subgoal, objects)
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
         local subg = subgoal[{{1, self.subgoal_dims}}]
-        self.subgoal_success[subg] = self.subgoal_success[subg] or 0
-        self.subgoal_success[subg] = self.subgoal_success[subg] + 1
+        self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
+        self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
         return true
     else
         return false
@@ -417,11 +435,8 @@ function nql:intrinsic_reward(subgoal, objects)
     else
         reward = 0
     end
-    -- print(reward)
-    if reward > 20 then
-        -- gandu()
-    end
-    return reward
+
+    return reward * 0.01
 end
 
 
@@ -508,9 +523,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end
 
     if not terminal then
-        return actionIndex, goal_reached
+        return actionIndex, goal_reached, reward, reward+intrinsic_reward
     else
-        return 0, goal_reached
+        return 0, goal_reached, reward, reward+intrinsic_reward
     end
 end
 
@@ -585,13 +600,18 @@ end
 
 
 function nql:report()
+    print("Subgoal Network\n---------------------")
     print(get_weight_norms(self.network))
     print(get_grad_norms(self.network))
+    print(" Real Network\n---------------------")
+    print(get_weight_norms(self.network_real))
+    print(get_grad_norms(self.network_real))
+    
 
     -- print stats on subgoal success rates
     for subg, val in pairs(self.subgoal_total) do
         if self.subgoal_success[subg] then 
-            print("Subgoal " , subg , ' : ',  self.subgoal_success[subg]/val)
+            print("Subgoal " , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
         else
             print("Subgoal " , subg ,  ' : ')
         end

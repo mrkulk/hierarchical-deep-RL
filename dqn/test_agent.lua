@@ -4,10 +4,7 @@ See LICENSE file for full terms of limited license.
 ]]
 
 gd = require "gd"
-
-if not dqn then
-    require "initenv"
-end
+require 'torch'
 
 local cmd = torch.CmdLine()
 cmd:text()
@@ -45,6 +42,12 @@ cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:text()
 
 local opt = cmd:parse(arg)
+ZMQ_PORT = opt.port
+
+
+if not dqn then
+    require "initenv"
+end
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
