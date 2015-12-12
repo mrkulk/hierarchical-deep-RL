@@ -34,6 +34,10 @@ function nql:__init(args)
     self.subgoal_success = {}
     self.subgoal_total = {}
 
+    -- to keep track of dying position
+    self.deathPosition = nil
+    self.DEATH_THRESHOLD = 15
+
     --- epsilon annealing
     self.ep_start   = args.ep or 1
     self.ep         = self.ep_start -- Exploration probability.
@@ -50,7 +54,9 @@ function nql:__init(args)
     self.valid_size     = args.valid_size or 500
 
     --- Q-learning parameters
+    self.dynamic_discount = 0
     self.discount       = args.discount or 0.99 --Discount factor.
+    self.discount_internal       = args.discount_internal --Discount factor for internal rewards
     self.update_freq    = args.update_freq or 1
     -- Number of points to replay per learning step.
     self.n_replay       = args.n_replay or 1
@@ -211,7 +217,7 @@ function nql:preprocess(rawstate)
 end
 
 
-function nql:getQUpdate(args)
+function nql:getQUpdate(args, external_r)
     local s, a, r, s2, term, delta
     local q, q2, q2_max
 
@@ -241,7 +247,15 @@ function nql:getQUpdate(args)
     q2_max = target_q_net:forward({s2, subgoals2}):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
-    q2 = q2_max:clone():mul(self.discount):cmul(term)
+
+    local discount
+    if external_r then
+        discount = math.max(self.dynamic_discount, self.discount) -- for real network
+    else
+        discount = math.max(self.dynamic_discount, self.discount_internal) -- for subgoal network
+    end
+
+    q2 = q2_max:clone():mul(discount):cmul(term)
 
     delta = r:clone():float()
 
@@ -291,8 +305,8 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
         r = r[{{},2}] --external + intrinsic reward 
     end
 
-    local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
-        term=term, subgoals = subgoals, subgoals2=subgoals2, network = network, update_qmax=true, target_network = target_network}
+    local targets, delta, q2_max = self:getQUpdate({s=s, a=a, r=r, s2=s2,
+        term=term, subgoals = subgoals, subgoals2=subgoals2, network = network, update_qmax=true, target_network = target_network}, external_r)
 
     -- zero gradients of parameters
     dw:zero()
@@ -428,7 +442,11 @@ function nql:intrinsic_reward(subgoal, objects)
     -- return reward based on distance or 0/1 towards sub-goal
     local agent = objects[1]
     local reward
-    if self.lastSubgoal then
+    -- if self.lastSubgoal then
+    --     print("last subgoal", self.lastSubgoal[{{1,7}}])
+    -- end
+    -- print("current subgoal", subgoal[{{1,7}}])
+    if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
         local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
         local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
         reward = dist2 - dist1
@@ -436,18 +454,23 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
 
-    return reward * 0.01
+    return reward * 0.1
 end
 
 
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
-        reward = -100
+        reward = -200
     end
 
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
+
+    if terminal then
+        self.deathPosition = objects[1][{{1,2}}] --just store the x and y coords of the agent
+    end 
+
     local goal_reached = self:isGoalReached(subgoal, objects)
     local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
     reward = reward - 0.01 -- penalize for just standing
@@ -488,8 +511,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     -- Select action
     local actionIndex = 1
+    local qfunc
     if not terminal then
-        actionIndex = self:eGreedy(curState, testing_ep, subgoal)
+        actionIndex, qfunc = self:eGreedy(curState, testing_ep, subgoal)
     end
 
     self.transitions:add_recent_action(actionIndex) 
@@ -511,10 +535,28 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     self.lastAction = actionIndex
     self.lastTerminal = terminal
     if not terminal then
+        -- print("Getting subgoal")
         self.lastSubgoal = subgoal
+        --check if the game is still in the stages right after the agent dies
+        if self.deathPosition then
+            currentPosition = objects[1][{{1,2}}]
+            -- print("Positions:", currentPosition, self.deathPosition)
+            if math.sqrt((currentPosition[1]-self.deathPosition[1])^2 + (currentPosition[2]-self.deathPosition[2])^2) < self.DEATH_THRESHOLD then
+                self.lastSubgoal = nil
+                -- print("death overruling")
+            else
+                -- print("Removing death position", self.deathPosition)
+                self.deathPosition = nil
+            end
+
+        end
+
     else
         self.lastSubgoal = nil
     end
+
+
+
     self.lastobjects = objects
 
     if self.target_q and self.numSteps % self.target_q == 1 then
@@ -523,9 +565,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end
 
     if not terminal then
-        return actionIndex, goal_reached, reward, reward+intrinsic_reward
+        return actionIndex, goal_reached, reward, reward+intrinsic_reward, qfunc
     else
-        return 0, goal_reached, reward, reward+intrinsic_reward
+        return 0, goal_reached, reward, reward+intrinsic_reward, qfunc
     end
 end
 
@@ -581,7 +623,7 @@ function nql:greedy(state, subgoal)
 
     self.lastAction = besta[r]
 
-    return besta[r]
+    return besta[r], q
 end
 
 

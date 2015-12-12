@@ -37,7 +37,7 @@ cmd:option('-csv_file', '', 'CSV path to write session data')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-port', 5550, 'Port for zmq connection')
-
+cmd:option('-stepthrough', true, 'Stepthrough')
 
 cmd:text()
 
@@ -87,15 +87,26 @@ subgoal = agent:pick_subgoal(screen, 3)
 --print('Subgoal:', subgoal)
 
 -- play one episode (game)
-while not terminal do
+while true or not terminal do
     -- if action was chosen randomly, Q-value is 0
     agent.bestq = 0
     
     -- choose the best action
-    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
 
-    -- play game in test mode (episodes don't end when losing a life)
+    if opt.stepthrough then
+        print("Reward Ext", reward_ext)
+        print("Reward Tot", reward_tot)
+        print("Q-func", qfunc)
+        print("Action", action_index)
+        io.read()
+    end
+
+    -- play game in test mode (episodes don't end when losing a life if false below)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
+    -- screen, reward, terminal = game_env:step(game_actions[action_index])
+
+
 
 
     if isGoalReached then

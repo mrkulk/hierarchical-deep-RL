@@ -47,6 +47,8 @@ cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
+cmd:option('-stepthrough', false, 'Stepthrough')
+
 
 
 cmd:text()
@@ -103,16 +105,28 @@ while step < opt.steps do
     xlua.progress(step, opt.steps)
 
     step = step + 1
-    local action_index, isGoalReached = agent:perceive(subgoal, reward, screen, terminal)
+    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
+
+      if opt.stepthrough then
+        print("Reward Ext", reward_ext)
+        print("Reward Tot", reward_tot)
+        print("Q-func", qfunc)
+        print("Action", action_index)
+        io.read()
+    end
+
 
 
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
     else
+        -- print("TERMINAL ENCOUNTERED")
         if opt.random_starts > 0 then
+            -- print("RANDOM GAME STARTING")
             screen, reward, terminal = game_env:nextRandomGame()
         else
+            -- print("NEW GAME STARTING")
             screen, reward, terminal = game_env:newGame()
         end
         isGoalReached = true --new game so reset goal
@@ -140,6 +154,11 @@ while step < opt.steps do
         collectgarbage()
     end
 
+     -- update dynamic discount
+    if step > learn_start then
+        agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
+    end
+
     if step%1000 == 0 then collectgarbage() end
 
     -- evaluation
@@ -165,7 +184,7 @@ while step < opt.steps do
         for estep=1,opt.eval_steps do
             xlua.progress(estep, opt.eval_steps)
 
-            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.05)
+            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
 
 
             cum_reward_tot = cum_reward_tot + reward_tot
