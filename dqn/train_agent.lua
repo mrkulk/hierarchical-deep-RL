@@ -99,7 +99,9 @@ local win = nil
 
 local subgoal = agent:pick_subgoal(screen)
 
-
+local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
+                    'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
+                    'down-right-fire', 'down-left-fire'}
 
 while step < opt.steps do
     xlua.progress(step, opt.steps)
@@ -107,14 +109,21 @@ while step < opt.steps do
     step = step + 1
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
 
-      if opt.stepthrough then
+    if opt.stepthrough then
         print("Reward Ext", reward_ext)
         print("Reward Tot", reward_tot)
-        print("Q-func", qfunc)
-        print("Action", action_index)
-        io.read()
-    end
+        print("Q-func")
+        if qfunc then
+            for i=1, #action_list do
+                print(action_list[i], qfunc[i])
+            end
+        end
 
+        print("Action", action_index, action_list[action_index])
+        if step > 3000 then
+            io.read()
+        end
+    end
 
 
     -- game over? get next game!
@@ -217,7 +226,7 @@ while step < opt.steps do
                 isGoalReached = true --new game so reset subgoal
             end
             if isGoalReached then
-                subgoal = agent:pick_subgoal(screen)
+                subgoal = agent:pick_subgoal(screen, 7)
                 isGoalReached = false
             end
         end
@@ -287,8 +296,10 @@ while step < opt.steps do
         end
         filename = filename
         torch.save(filename .. ".t7", {agent = agent,
-                                model = agent.network_real,
-                                best_model = agent.best_network_real,
+                                model = agent.network,
+                                best_model = agent.best_network,
+                                model_real = agent.network_real, 
+                                best_model_real = agent.best_network_real,
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
                                 episode_counts = episode_counts,

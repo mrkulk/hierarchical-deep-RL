@@ -54,7 +54,7 @@ function nql:__init(args)
     self.valid_size     = args.valid_size or 500
 
     --- Q-learning parameters
-    self.dynamic_discount = 0
+    self.dynamic_discount = args.dynamic_discount
     self.discount       = args.discount or 0.99 --Discount factor.
     self.discount_internal       = args.discount_internal --Discount factor for internal rewards
     self.update_freq    = args.update_freq or 1
@@ -417,6 +417,9 @@ function nql:pick_subgoal(rawstate, oid)
     self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
     self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
 
+    -- zeroing out discrete objects
+    -- ftrvec:zero()
+
     return torch.cat(subg, ftrvec)
 end
 
@@ -454,7 +457,9 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
 
-    return reward * 0.1
+    --reward = 0 -- no intrinsic reward except for reaching the subgoal
+
+    return reward
 end
 
 
@@ -473,7 +478,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     local goal_reached = self:isGoalReached(subgoal, objects)
     local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
-    reward = reward - 0.01 -- penalize for just standing
+    reward = reward - 0.1 -- penalize for just standing
     if goal_reached then
         intrinsic_reward = intrinsic_reward + 50
     end

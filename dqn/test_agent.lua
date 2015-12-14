@@ -38,6 +38,8 @@ cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', true, 'Stepthrough')
+cmd:option('-human_input', false, 'Human input action')
+
 
 cmd:text()
 
@@ -83,8 +85,13 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 3)
+subgoal = agent:pick_subgoal(screen)
 --print('Subgoal:', subgoal)
+
+
+local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
+                    'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
+                    'down-right-fire', 'down-left-fire'}
 
 -- play one episode (game)
 while true or not terminal do
@@ -92,25 +99,45 @@ while true or not terminal do
     agent.bestq = 0
     
     -- choose the best action
-    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+    local action_index, isGoalReached, reward_ext, reward_tot, qfunc 
+    = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+
+    local tmp2
 
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
         print("Reward Tot", reward_tot)
-        print("Q-func", qfunc)
-        print("Action", action_index)
-        io.read()
+        print("Q-func")
+        if qfunc then
+            for i=1, #action_list do
+                print(string.format("%s %.4f", action_list[i], qfunc[i]))
+            end
+        end
+        print("Action", action_index, action_list[action_index])
+        tmp2 = io.read()
+    end
+
+    --human input of action
+    if tmp2=='y' or opt.human_input then
+        print("Enter action")
+        local tmp = io.read()
+        if tmp then
+            action_index = tonumber(tmp)
+        end
+
     end
 
     -- play game in test mode (episodes don't end when losing a life if false below)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
+        -- screen, reward, terminal = game_env:step(game_actions[1], false) --no-op
+
     -- screen, reward, terminal = game_env:step(game_actions[action_index])
 
 
 
 
     if isGoalReached then
-        subgoal = agent:pick_subgoal(screen, 4)
+        subgoal = agent:pick_subgoal(screen)
     end
 
     screen_cropped = screen:clone()
