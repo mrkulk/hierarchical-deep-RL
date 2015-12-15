@@ -37,7 +37,7 @@ cmd:option('-csv_file', '', 'CSV path to write session data')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-port', 5550, 'Port for zmq connection')
-cmd:option('-stepthrough', true, 'Stepthrough')
+cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-human_input', false, 'Human input action')
 
 
@@ -85,7 +85,7 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen)
+subgoal = agent:pick_subgoal(screen, 7)
 --print('Subgoal:', subgoal)
 
 
@@ -100,7 +100,7 @@ while true or not terminal do
     
     -- choose the best action
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc 
-    = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+    = agent:perceive(subgoal, reward, screen, terminal, true, 0.0)
 
     local tmp2
 

@@ -99,7 +99,7 @@ function nql:__init(args)
         if not err_msg then
             error("Could not find network file ")
         end
-        if self.best and exp.best_model then
+        if self.best and exp.best_model then --best_model_real and model_rel if testing on non-subgoal network  
             self.network = exp.best_model
         else
             self.network = exp.model
@@ -182,6 +182,8 @@ function nql:__init(args)
     if self.target_q then
         self.target_network = self.network:clone()
         self.target_network_real = self.network_real:clone()
+        self.w_target, self.dw_target = self.target_network:getParameters()
+        self.w_real_target, self.dw_real_target = self.target_network_real:getParameters()
     end
 end
 
@@ -296,7 +298,7 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
     assert(self.transitions:size() > self.minibatch_size)
 
     local s, a, r, s2, term, subgoals, subgoals2 = self.transitions:sample(self.minibatch_size)
-
+    -- print(r, s:sum(2))
     if external_r then
         r = r[{{},1}] --extract external reward
         subgoals[{{},{1,self.subgoal_dims}}] = 0
@@ -324,6 +326,8 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
                 self.lr_end
     self.lr = math.max(self.lr, self.lr_end)
 
+
+
      --grad normalization
     -- local max_norm = 1000
     -- local grad_norm = dw:norm()
@@ -336,21 +340,21 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
     -- end
 
     -- use gradients (original)
-    -- g:mul(0.95):add(0.05, dw)
-    -- tmp:cmul(dw, dw)
-    -- g2:mul(0.95):add(0.05, tmp)
-    -- tmp:cmul(g, g)
-    -- tmp:mul(-1)
-    -- tmp:add(g2)
-    -- tmp:add(0.01)
-    -- tmp:sqrt()
+    g:mul(0.95):add(0.05, dw)
+    tmp:cmul(dw, dw)
+    g2:mul(0.95):add(0.05, tmp)
+    tmp:cmul(g, g)
+    tmp:mul(-1)
+    tmp:add(g2)
+    tmp:add(0.01)
+    tmp:sqrt()
 
     --rmsprop
-    local smoothing_value = 1e-8
-    tmp:cmul(dw, dw)
-    g:mul(0.9):add(0.1, tmp)
-    tmp = torch.sqrt(g)
-    tmp:add(smoothing_value)  --negative learning rate
+    -- local smoothing_value = 1e-8
+    -- tmp:cmul(dw, dw)
+    -- g:mul(0.9):add(0.1, tmp)
+    -- tmp = torch.sqrt(g)
+    -- tmp:add(smoothing_value)  --negative learning rate
 
     -- accumulate update
     deltas:mul(0):addcdiv(self.lr, dw, tmp)
@@ -457,7 +461,7 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
 
-    --reward = 0 -- no intrinsic reward except for reaching the subgoal
+    reward = 0 -- no intrinsic reward except for reaching the subgoal
 
     return reward
 end
@@ -505,6 +509,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if self.lastState and not testing and self.lastSubgoal then
         self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
                             self.lastTerminal, self.lastSubgoal, priority)
+        -- print("STORING PREV TRANSITION", self.lastState:sum(), self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
+                            -- self.lastTerminal, self.lastSubgoal:sum(), priority)
     end
 
     if self.numSteps == self.learn_start+1 and not testing then
@@ -520,6 +526,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if not terminal then
         actionIndex, qfunc = self:eGreedy(curState, testing_ep, subgoal)
     end
+
+    -- actionIndex = 5 --left
 
     self.transitions:add_recent_action(actionIndex) 
 
@@ -557,16 +565,22 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         end
 
     else
+        -- print("LAST SUBGOAL is now NIL")
         self.lastSubgoal = nil
     end
 
-
-
     self.lastobjects = objects
 
-    if self.target_q and self.numSteps % self.target_q == 1 then
-        self.target_network = self.network:clone()
-        self.target_network_real = self.network_real:clone() 
+    -- target q copy
+    if false then -- deprecated
+        if self.target_q and self.numSteps % self.target_q == 1 then
+            self.target_network = self.network:clone()
+            self.target_network_real = self.network_real:clone() 
+        end
+    else --smooth average
+        local alpha = 0.999
+        self.w_target:mul(0.999):add(self.w * (1-alpha))
+        self.w_real_target:mul(0.999):add(self.w_real * (1-alpha))
     end
 
     if not terminal then

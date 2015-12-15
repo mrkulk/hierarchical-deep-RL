@@ -103,12 +103,15 @@ local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right',
                     'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
                     'down-right-fire', 'down-left-fire'}
 
+death_counter = 0 --to handle a bug in MZ atari
+
 while step < opt.steps do
     xlua.progress(step, opt.steps)
 
     step = step + 1
-    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
 
+    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
+    
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
         print("Reward Tot", reward_tot)
@@ -120,16 +123,28 @@ while step < opt.steps do
         end
 
         print("Action", action_index, action_list[action_index])
-        if step > 3000 then
-            io.read()
-        end
+        io.read()
     end
+
+    if false and new_game then--new_game then
+        print("Q-func")
+        if prev_Q then
+            for i=1, #action_list do
+                print(action_list[i], prev_Q[i])
+            end
+        end
+        print("SUM OF PIXELS: ", screen:sum())
+        new_game = false
+    end    
 
 
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
+        -- screen, reward, terminal = game_env:step(game_actions[1], true)
+        prev_Q = qfunc 
     else
+        death_counter = death_counter + 1
         -- print("TERMINAL ENCOUNTERED")
         if opt.random_starts > 0 then
             -- print("RANDOM GAME STARTING")
@@ -138,6 +153,13 @@ while step < opt.steps do
             -- print("NEW GAME STARTING")
             screen, reward, terminal = game_env:newGame()
         end
+        
+        if death_counter == 5 then
+            screen,reward, terminal = game_env:newGame()
+            death_counter = 0
+        end
+
+        new_game = true
         isGoalReached = true --new game so reset goal
     end
   
@@ -163,10 +185,11 @@ while step < opt.steps do
         collectgarbage()
     end
 
+
      -- update dynamic discount
-    if step > learn_start then
-        agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
-    end
+    -- if step > learn_start then
+    --     agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
+    -- end
 
     if step%1000 == 0 then collectgarbage() end
 
@@ -188,6 +211,8 @@ while step < opt.steps do
         nrewards = 0
         nepisodes = 0
         episode_reward = 0
+
+        death_counter_eval = 0
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
@@ -224,6 +249,12 @@ while step < opt.steps do
                 nepisodes = nepisodes + 1
                 screen, reward, terminal = game_env:nextRandomGame()
                 isGoalReached = true --new game so reset subgoal
+                death_counter_eval = death_counter_eval + 1
+
+                if death_counter_eval == 5 then
+                    screen,reward, terminal = game_env:newGame()
+                    death_counter_eval = 0
+                end
             end
             if isGoalReached then
                 subgoal = agent:pick_subgoal(screen, 7)

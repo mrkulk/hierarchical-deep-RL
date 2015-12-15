@@ -38,7 +38,7 @@ eval_steps=10000
 prog_freq=10000
 save_freq=10000
 gpu=0
-random_starts=30
+random_starts=0  #need to make this 30 later for random starting points for comparison with original DQN
 pool_frms="type="$pool_frms_type",size="$pool_frms_size
 num_threads=4
 

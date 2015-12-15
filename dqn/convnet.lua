@@ -69,7 +69,6 @@ function create_network(args)
     end
 
 
-
     -- add the last fully connected layer (to actions)
     full_net:add(nn.Linear(last_layer_size, args.n_actions))
 
