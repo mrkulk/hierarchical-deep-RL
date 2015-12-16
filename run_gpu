@@ -3,9 +3,13 @@
 if [ -z "$1" ]
   then echo "Please provide the name of the game and a log name and a port, e.g.  ./run_gpu breakout basic1 5000"; exit 0
 fi
+
+subgoal_index = ${4:-12} # a number between 2 to 11 for now, 12 means not use any subgoal
+use_distance = ${5:-"false"} #using distance to subgoal as a reward
+
+
 ENV=$1
 FRAMEWORK="alewrap"
-
 game_path=$PWD"/roms/"
 env_params="useRGB=true"
 agent="NeuralQLearner"
@@ -43,7 +47,7 @@ pool_frms="type="$pool_frms_type",size="$pool_frms_size
 num_threads=4
 
 mkdir dqn/logs/$agent_type;
-args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -name logs/$agent_type/$agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -steps $steps -eval_freq $eval_freq -eval_steps $eval_steps -prog_freq $prog_freq -save_freq $save_freq -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads -port $3"
+args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -name logs/$agent_type/$agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -steps $steps -eval_freq $eval_freq -eval_steps $eval_steps -prog_freq $prog_freq -save_freq $save_freq -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads -port $3 -subgoal_index $subgoal_index -use_distance $use_distance"
 echo $args
 
 cd dqn

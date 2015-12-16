@@ -12,6 +12,10 @@ cmd:text('Train Agent in Environment:')
 cmd:text()
 cmd:text('Options:')
 
+cmd:option('-subgoal_index', '', 'the index of the subgoal that we want to reach. used for slurm multiple runs')
+cmd:option('-use_distance', false, 'use distance to a subgoal as a reward. used for slurm experiments')
+cmd:option('-max_subgoal_index', '', 'used as an index to run with all the subgoals instead of only one specific one')
+
 cmd:option('-exp_folder', '', 'name of folder where current exp state is being stored')
 cmd:option('-framework', '', 'name of training framework')
 cmd:option('-env', '', 'name of environment to use')
@@ -99,6 +103,11 @@ local win = nil
 
 local subgoal = agent:pick_subgoal(screen)
 
+if opt.subgoal_index < opt.max_subgoal_index then 
+    subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+end
+
+
 local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
                     'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
                     'down-right-fire', 'down-left-fire'}
@@ -166,6 +175,13 @@ while step < opt.steps do
     if isGoalReached then
         subgoal = agent:pick_subgoal(screen)
         isGoalReached = false
+
+        if opt.subgoal_index < opt.max_subgoal_index then 
+            screen,reward, terminal = game_env:newGame()
+            subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+            isGoalReached = false
+        end
+
     end
 
 

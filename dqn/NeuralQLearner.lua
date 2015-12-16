@@ -30,6 +30,9 @@ function nql:__init(args)
     self.subgoal_dims = args.subgoal_dims
     self.subgoal_nhid = args.subgoal_nhid
 
+    -- run subgoal specific experiments
+    self.use_distance = args.use_distance -- if we want to use the distance as the reward
+
     -- to keep track of stats
     self.subgoal_success = {}
     self.subgoal_total = {}
@@ -410,8 +413,8 @@ function nql:pick_subgoal(rawstate, oid)
     while objects[indxs]:sum() == 0 do -- object absent
         indxs = torch.random(2, #objects) -- first is the agent
     end
+    
     -- concatenate subgoal with objects (input into network)
-    local subg = objects[indxs]
     local ftrvec = torch.zeros(#objects*self.subgoal_dims)
     for i = 1,#objects do
         ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
@@ -461,7 +464,9 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
 
-    reward = 0 -- no intrinsic reward except for reaching the subgoal
+    if not self.use_distance then
+        reward = 0 -- no intrinsic reward except for reaching the subgoal
+    end
 
     return reward
 end
