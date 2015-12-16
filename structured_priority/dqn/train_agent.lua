@@ -3,8 +3,13 @@ Copyright (c) 2014 Google Inc.
 
 See LICENSE file for full terms of limited license.
 ]]
-require 'xlua'
+
+if not dqn then
+    require "initenv"
+end
 require 'optim'
+require 'xlua'
+    
 
 local cmd = torch.CmdLine()
 cmd:text()
@@ -12,11 +17,6 @@ cmd:text('Train Agent in Environment:')
 cmd:text()
 cmd:text('Options:')
 
-cmd:option('-subgoal_index', '', 'the index of the subgoal that we want to reach. used for slurm multiple runs')
-cmd:option('-use_distance', false, 'use distance to a subgoal as a reward. used for slurm experiments')
-cmd:option('-max_subgoal_index', '', 'used as an index to run with all the subgoals instead of only one specific one')
-
-cmd:option('-exp_folder', '', 'name of folder where current exp state is being stored')
 cmd:option('-framework', '', 'name of training framework')
 cmd:option('-env', '', 'name of environment to use')
 cmd:option('-game_path', '', 'path to environment file (ROM)')
@@ -26,13 +26,14 @@ cmd:option('-pool_frms', '',
 cmd:option('-actrep', 1, 'how many times to repeat action')
 cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
            'number of times at the start of each training episode')
+cmd:option('-exp_folder', 'logs/', 'name of folder where current exp state is being stored')
 
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
-cmd:option('-saveNetworkParams', true,
+cmd:option('-saveNetworkParams', false,
            'saves the agent network in a separate file')
 cmd:option('-prog_freq', 5*10^3, 'frequency of progress output')
 cmd:option('-save_freq', 5*10^4, 'the model is saved every save_freq steps')
@@ -46,31 +47,12 @@ cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
-
-cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
-cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', true, 'option to display game')
-cmd:option('-port', 5550, 'Port for zmq connection')
-cmd:option('-stepthrough', false, 'Stepthrough')
-
-cmd:option('-max_steps_episode', 1000, 'Max steps per episode')
-
-
+cmd:option('-display_game', false, 'option to display game')
 
 
 cmd:text()
 
 local opt = cmd:parse(arg)
-ZMQ_PORT = opt.port
-
-
-if not dqn then
-    require "initenv"
-end
-
-
-print(opt.env_params)
-print(opt.seed)
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
@@ -103,102 +85,23 @@ local screen, reward, terminal = game_env:getState()
 
 print("Iteration ..", step)
 local win = nil
-
-local subgoal = agent:pick_subgoal(screen)
-
-if opt.subgoal_index < opt.max_subgoal_index then 
-    subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-end
-
-
-local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
-                    'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
-                    'down-right-fire', 'down-left-fire'}
-
-death_counter = 0 --to handle a bug in MZ atari
-
-episode_step_counter = 0
-
 while step < opt.steps do
-    xlua.progress(step, opt.steps)
-
     step = step + 1
-
-    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
-    
-    if opt.stepthrough then
-        print("Reward Ext", reward_ext)
-        print("Reward Tot", reward_tot)
-        print("Q-func")
-        if qfunc then
-            for i=1, #action_list do
-                print(action_list[i], qfunc[i])
-            end
-        end
-
-        print("Action", action_index, action_list[action_index])
-        io.read()
-    end
-
-    if false and new_game then--new_game then
-        print("Q-func")
-        if prev_Q then
-            for i=1, #action_list do
-                print(action_list[i], prev_Q[i])
-            end
-        end
-        print("SUM OF PIXELS: ", screen:sum())
-        new_game = false
-    end    
-
+    local action_index = agent:perceive(reward, screen, terminal)
 
     -- game over? get next game!
-    if not terminal and  episode_step_counter < opt.max_steps_episode then
+    if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
-        episode_step_counter = episode_step_counter + 1
-        -- screen, reward, terminal = game_env:step(game_actions[1], true)
-        prev_Q = qfunc 
     else
-        death_counter = death_counter + 1
-        -- print("TERMINAL ENCOUNTERED")
         if opt.random_starts > 0 then
-            -- print("RANDOM GAME STARTING")
             screen, reward, terminal = game_env:nextRandomGame()
         else
-            -- print("NEW GAME STARTING")
             screen, reward, terminal = game_env:newGame()
         end
-        
-        if death_counter == 5 then
-            screen,reward, terminal = game_env:newGame()
-            death_counter = 0
-        end
-
-        new_game = true
-        isGoalReached = true --new game so reset goal
-        episode_step_counter = 0
     end
-  
-    if isGoalReached then
-        subgoal = agent:pick_subgoal(screen)
-        isGoalReached = false
-
-        if opt.subgoal_index < opt.max_subgoal_index then 
-            screen,reward, terminal = game_env:newGame()
-            subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-            isGoalReached = false
-        end
-
-    end
-
 
     -- display screen
-    if opt.display_game then
-        screen_cropped = screen:clone()
-        screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-        screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        win = image.display({image=screen_cropped, win=win})
-    end
+    if opt.display_game then win = image.display({image=screen, win=win}) end
 
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
@@ -208,23 +111,15 @@ while step < opt.steps do
         collectgarbage()
     end
 
-
-     -- update dynamic discount
-    -- if step > learn_start then
-    --     agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
-    -- end
-
     if step%1000 == 0 then collectgarbage() end
 
-    -- evaluation
-    if step % opt.eval_freq == 0 and step > learn_start then
-        print("Testing ...")
+    if step > learn_start then
+        print("Learning started.")
+    end
 
-        local cum_reward_ext = 0
-        local cum_reward_tot = 0
+    if step % opt.eval_freq == 0 and step > learn_start then
 
         screen, reward, terminal = game_env:newGame()
-        subgoal = agent:pick_subgoal(screen)
 
         test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
         test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
@@ -235,28 +130,15 @@ while step < opt.steps do
         nepisodes = 0
         episode_reward = 0
 
-        death_counter_eval = 0
-
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            xlua.progress(estep, opt.eval_steps)
-
-            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
-
-
-            cum_reward_tot = cum_reward_tot + reward_tot
-            cum_reward_ext = cum_reward_ext + reward_ext
+            local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
 
             -- display screen
-            if opt.display_game then
-                screen_cropped = screen:clone()
-                screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-                screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                win = image.display({image=screen_cropped, win=win})
-            end
+            if opt.display_game then win = image.display({image=screen, win=win}) end
 
             if estep%1000 == 0 then collectgarbage() end
 
@@ -270,18 +152,7 @@ while step < opt.steps do
                 total_reward = total_reward + episode_reward
                 episode_reward = 0
                 nepisodes = nepisodes + 1
-                screen, reward, terminal = game_env:newGame()
-                isGoalReached = true --new game so reset subgoal
-                death_counter_eval = death_counter_eval + 1
-
-                if death_counter_eval == 5 then
-                    screen,reward, terminal = game_env:newGame()
-                    death_counter_eval = 0
-                end
-            end
-            if isGoalReached then
-                subgoal = agent:pick_subgoal(screen, 7)
-                isGoalReached = false
+                screen, reward, terminal = game_env:nextRandomGame()
             end
         end
 
@@ -291,11 +162,8 @@ while step < opt.steps do
         local ind = #reward_history+1
         total_reward = total_reward/math.max(1, nepisodes)
 
-        cum_reward_ext = cum_reward_ext / math.max(1,nepisodes)
-        cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
-
         if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            agent.best_network_real = agent.network_real:clone()
+            agent.best_network = agent.network:clone()
         end
 
         if agent.v_avg then
@@ -304,6 +172,7 @@ while step < opt.steps do
             qmax_history[ind] = agent.q_max
         end
         print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
+
 
         test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
         test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
@@ -314,7 +183,8 @@ while step < opt.steps do
         test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
 
         test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
-      
+
+
         reward_history[ind] = total_reward
         reward_counts[ind] = nrewards
         episode_counts[ind] = nepisodes
@@ -326,10 +196,10 @@ while step < opt.steps do
         local training_rate = opt.actrep*opt.eval_freq/time_dif
 
         print(string.format(
-            '\nSteps: %d (frames: %d), extrinsic reward: %.2f, total reward (I+E): %.2f, epsilon: %.2f, lr: %G, ' ..
+            '\nSteps: %d (frames: %d), reward: %.2f, epsilon: %.2f, lr: %G, ' ..
             'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
             'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
-            step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
+            step, step*opt.actrep, total_reward, agent.ep, agent.lr, time_dif,
             training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
             nepisodes, nrewards))
     end
@@ -339,10 +209,10 @@ while step < opt.steps do
             agent.valid_s2, agent.valid_term
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = nil, nil, nil, nil, nil, nil, nil
-        local w_real, dw_real, g_real, g2_real, delta, delta2, deltas, deltas_real, tmp_real = agent.w_real, agent.dw_real,
-            agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas, agent.deltas_real, agent.tmp_real
-        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas, 
-            agent.deltas_real, agent.tmp_real = nil, nil, nil, nil, nil, nil, nil, nil, nil
+        local w, dw, g, g2, delta, delta2, deltas, tmp = agent.w, agent.dw,
+            agent.g, agent.g2, agent.delta, agent.delta2, agent.deltas, agent.tmp
+        agent.w, agent.dw, agent.g, agent.g2, agent.delta, agent.delta2,
+            agent.deltas, agent.tmp = nil, nil, nil, nil, nil, nil, nil, nil
 
         local filename = opt.name
         if opt.save_versions > 0 then
@@ -352,8 +222,6 @@ while step < opt.steps do
         torch.save(filename .. ".t7", {agent = agent,
                                 model = agent.network,
                                 best_model = agent.best_network,
-                                model_real = agent.network_real, 
-                                best_model_real = agent.best_network_real,
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
                                 episode_counts = episode_counts,
@@ -363,13 +231,13 @@ while step < opt.steps do
                                 qmax_history = qmax_history,
                                 arguments=opt})
         if opt.saveNetworkParams then
-            local nets = {network=w_real:clone():float()}
+            local nets = {network=w:clone():float()}
             torch.save(filename..'.params.t7', nets, 'ascii')
         end
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = s, a, r, s2, term
-        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas,
-            agent.deltas_real, agent.tmp_real = w_real, dw_real, g_real, g2_real, delta, delta2, deltas, deltas_real, tmp_real
+        agent.w, agent.dw, agent.g, agent.g2, agent.delta, agent.delta2,
+            agent.deltas, agent.tmp = w, dw, g, g2, delta, delta2, deltas, tmp
         print('Saved:', filename .. '.t7')
         io.flush()
         collectgarbage()
