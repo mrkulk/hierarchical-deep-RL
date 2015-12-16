@@ -49,6 +49,9 @@ cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 
+cmd:option('-max_steps_episode', 1000, 'Max steps per episode')
+
+
 
 
 cmd:text()
@@ -105,6 +108,8 @@ local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right',
 
 death_counter = 0 --to handle a bug in MZ atari
 
+episode_step_counter = 0
+
 while step < opt.steps do
     xlua.progress(step, opt.steps)
 
@@ -139,8 +144,9 @@ while step < opt.steps do
 
 
     -- game over? get next game!
-    if not terminal then
+    if not terminal and  episode_step_counter < opt.max_steps_episode then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
+        episode_step_counter = episode_step_counter + 1
         -- screen, reward, terminal = game_env:step(game_actions[1], true)
         prev_Q = qfunc 
     else
@@ -161,6 +167,7 @@ while step < opt.steps do
 
         new_game = true
         isGoalReached = true --new game so reset goal
+        episode_step_counter = 0
     end
   
     if isGoalReached then
