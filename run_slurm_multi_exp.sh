@@ -1,8 +1,8 @@
 jobname='mz_test'
 
 for  seed in 6000; do
-     for subgoal in "1" "2" "3" "all"; do
-        for usedistance in 'True' 'False'; do
+     for subgoal in {2..12}; do
+        for usedistance in 'true' 'false'; do
                  stdOut=log.${temp}.stdout
                  stdErr=log.${temp}.stderr
                  temp="seed_${seed}_subgoal_${subgoal}_usedistance_${usedistance}"
