@@ -263,7 +263,7 @@ while step < opt.steps do
                 total_reward = total_reward + episode_reward
                 episode_reward = 0
                 nepisodes = nepisodes + 1
-                screen, reward, terminal = game_env:nextRandomGame()
+                screen, reward, terminal = game_env:newGame()
                 isGoalReached = true --new game so reset subgoal
                 death_counter_eval = death_counter_eval + 1
 

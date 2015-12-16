@@ -22,7 +22,7 @@ discount=0.99
 discount_internal=0.99
 dynamic_discount=0.99  #starting value for dynamic discounting scheme
 seed=$3 #using port as seed
-learn_start=50000 #50000
+learn_start=1500 #50000
 pool_frms_type="\"max\""
 pool_frms_size=2
 initial_priority="false"
@@ -42,7 +42,7 @@ eval_steps=10000
 prog_freq=10000
 save_freq=10000
 gpu=0
-random_starts=0  #need to make this 30 later for random starting points for comparison with original DQN
+random_starts=1  #need to make this 30 later for random starting points for comparison with original DQN
 pool_frms="type="$pool_frms_type",size="$pool_frms_size
 num_threads=4
 

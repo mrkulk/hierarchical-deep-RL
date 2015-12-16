@@ -468,6 +468,8 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0 -- no intrinsic reward except for reaching the subgoal
     end
 
+
+
     return reward
 end
 
