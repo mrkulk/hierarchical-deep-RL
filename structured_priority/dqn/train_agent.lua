@@ -113,10 +113,6 @@ while step < opt.steps do
 
     if step%1000 == 0 then collectgarbage() end
 
-    if step > learn_start then
-        print("Learning started.")
-    end
-
     if step % opt.eval_freq == 0 and step > learn_start then
 
         screen, reward, terminal = game_env:newGame()
@@ -179,10 +175,10 @@ while step < opt.steps do
         test_avg_Q:add{['% Average Q'] = agent.v_avg}
      
 
-        test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
-        test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
+        -- test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
+        -- test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
 
-        test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
+        -- test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
 
 
         reward_history[ind] = total_reward
