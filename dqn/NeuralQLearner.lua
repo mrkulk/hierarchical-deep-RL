@@ -415,6 +415,7 @@ function nql:pick_subgoal(rawstate, oid)
     end
     
     -- concatenate subgoal with objects (input into network)
+    local subg = objects[indxs]
     local ftrvec = torch.zeros(#objects*self.subgoal_dims)
     for i = 1,#objects do
         ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
@@ -464,12 +465,10 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
 
+
     if not self.use_distance then
         reward = 0 -- no intrinsic reward except for reaching the subgoal
     end
-
-
-
     return reward
 end
 

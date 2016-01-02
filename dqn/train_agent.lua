@@ -12,9 +12,9 @@ cmd:text('Train Agent in Environment:')
 cmd:text()
 cmd:text('Options:')
 
-cmd:option('-subgoal_index', '', 'the index of the subgoal that we want to reach. used for slurm multiple runs')
+cmd:option('-subgoal_index', 12, 'the index of the subgoal that we want to reach. used for slurm multiple runs')
 cmd:option('-use_distance', false, 'use distance to a subgoal as a reward. used for slurm experiments')
-cmd:option('-max_subgoal_index', '', 'used as an index to run with all the subgoals instead of only one specific one')
+cmd:option('-max_subgoal_index', 12, 'used as an index to run with all the subgoals instead of only one specific one')
 
 cmd:option('-exp_folder', '', 'name of folder where current exp state is being stored')
 cmd:option('-framework', '', 'name of training framework')
@@ -49,9 +49,12 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', true, 'option to display game')
+cmd:option('-display_game', false, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
+
+cmd:option('-max_steps_episode', 1000, 'Max steps per episode')
+
 
 
 
@@ -101,10 +104,12 @@ local screen, reward, terminal = game_env:getState()
 print("Iteration ..", step)
 local win = nil
 
-local subgoal = agent:pick_subgoal(screen)
+local subgoal
 
 if opt.subgoal_index < opt.max_subgoal_index then 
     subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+else
+    subgoal = agent:pick_subgoal(screen)
 end
 
 
@@ -113,6 +118,8 @@ local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right',
                     'down-right-fire', 'down-left-fire'}
 
 death_counter = 0 --to handle a bug in MZ atari
+
+episode_step_counter = 0
 
 while step < opt.steps do
     xlua.progress(step, opt.steps)
@@ -148,8 +155,17 @@ while step < opt.steps do
 
 
     -- game over? get next game!
-    if not terminal then
+    if not terminal and  episode_step_counter < opt.max_steps_episode then
+
+
+        if isGoalReached and opt.subgoal_index < opt.max_subgoal_index then 
+            screen,reward, terminal = game_env:newGame()  -- restart game if focussing on single subgoal
+            subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+            isGoalReached = false
+        end
+
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
+        episode_step_counter = episode_step_counter + 1
         -- screen, reward, terminal = game_env:step(game_actions[1], true)
         prev_Q = qfunc 
     else
@@ -170,18 +186,16 @@ while step < opt.steps do
 
         new_game = true
         isGoalReached = true --new game so reset goal
+        episode_step_counter = 0
     end
   
     if isGoalReached then
-        subgoal = agent:pick_subgoal(screen)
-        isGoalReached = false
-
-        if opt.subgoal_index < opt.max_subgoal_index then 
-            screen,reward, terminal = game_env:newGame()
+        if opt.subgoal_index  < opt.max_subgoal_index then
             subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-            isGoalReached = false
+        else
+            subgoal = agent:pick_subgoal(screen)
         end
-
+        isGoalReached = false
     end
 
 
