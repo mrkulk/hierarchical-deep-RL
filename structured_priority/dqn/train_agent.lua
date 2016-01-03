@@ -117,9 +117,9 @@ while step < opt.steps do
 
         screen, reward, terminal = game_env:newGame()
 
-        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
-        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
-        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
+        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'normal_test_avgQ.log'))
+        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'normal_test_avgR.log'))
+        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'normal_test_avgR2.log'))
 
         total_reward = 0
         nrewards = 0
