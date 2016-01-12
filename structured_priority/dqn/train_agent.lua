@@ -4,9 +4,7 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 
-if not dqn then
-    require "initenv"
-end
+
 require 'optim'
 require 'xlua'
     
@@ -48,11 +46,16 @@ cmd:option('-verbose', 2,
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 cmd:option('-display_game', false, 'option to display game')
+cmd:option('-mode', 0, 'priority sampling on/off')
 
 
 cmd:text()
 
 local opt = cmd:parse(arg)
+PRIORITY_FLAG = opt.mode
+if not dqn then
+    require "initenv"
+end
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
@@ -113,17 +116,13 @@ while step < opt.steps do
 
     if step%1000 == 0 then collectgarbage() end
 
-    if step > learn_start then
-        print("Learning started.")
-    end
-
     if step % opt.eval_freq == 0 and step > learn_start then
 
         screen, reward, terminal = game_env:newGame()
 
-        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
-        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
-        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
+        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , opt.name .. '_normal_test_avgQ.log'))
+        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , opt.name .. '_normal_test_avgR.log'))
+        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , opt.name .. '_normal_test_avgR2.log'))
 
         total_reward = 0
         nrewards = 0
@@ -179,10 +178,10 @@ while step < opt.steps do
         test_avg_Q:add{['% Average Q'] = agent.v_avg}
      
 
-        test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
-        test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
+        -- test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
+        -- test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
 
-        test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
+        -- test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
 
 
         reward_history[ind] = total_reward
