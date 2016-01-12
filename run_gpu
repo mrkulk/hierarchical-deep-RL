@@ -5,7 +5,7 @@ if [ -z "$1" ]
 fi
 
 subgoal_index=${4:-12} # a number between 2 to 11 for now, 12 means not use any subgoal
-use_distance=${5:-"false"} #using distance to subgoal as a reward
+use_distance=${5:-false} #using distance to subgoal as a reward
 
 
 ENV=$1
@@ -15,7 +15,7 @@ env_params="useRGB=true"
 agent="NeuralQLearner"
 n_replay=1
 netfile="\"convnet_atari3\""
-# netfile="\"logs/test4/test4_montezuma_revenge_FULL_Y.t7\""
+# netfile="\"logs/smoooth_target_q_limited_steps/smoooth_target_q_limited_steps_montezuma_revenge_FULL_Y.t7\""
 update_freq=4
 actrep=4
 discount=0.99
@@ -27,7 +27,7 @@ pool_frms_type="\"max\""
 pool_frms_size=2
 initial_priority="false"
 replay_memory=1000000
-eps_end=0.05 #0.1
+eps_end=0.1 #0.1
 eps_endt=500000 #replay_memory
 lr=0.00025
 agent_type=$2

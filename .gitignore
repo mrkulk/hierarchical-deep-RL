@@ -1,3 +1,4 @@
+dqn/logs
 slurm_logs
 dqn/*.png
 *~

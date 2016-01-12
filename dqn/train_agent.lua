@@ -13,7 +13,6 @@ cmd:text()
 cmd:text('Options:')
 
 cmd:option('-subgoal_index', 12, 'the index of the subgoal that we want to reach. used for slurm multiple runs')
-cmd:option('-use_distance', false, 'use distance to a subgoal as a reward. used for slurm experiments')
 cmd:option('-max_subgoal_index', 12, 'used as an index to run with all the subgoals instead of only one specific one')
 
 cmd:option('-exp_folder', '', 'name of folder where current exp state is being stored')
@@ -52,8 +51,10 @@ cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
+cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
 
-cmd:option('-max_steps_episode', 1000, 'Max steps per episode')
+cmd:option('-max_steps_episode', 5000, 'Max steps per episode')
+
 
 
 
@@ -62,6 +63,7 @@ cmd:text()
 
 local opt = cmd:parse(arg)
 ZMQ_PORT = opt.port
+SUBGOAL_SCREEN = opt.subgoal_screen
 
 
 if not dqn then
@@ -126,6 +128,11 @@ while step < opt.steps do
 
     step = step + 1
 
+    if opt.subgoal_screen then
+        screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        win = image.display({image=screen, win=win})
+    end
+
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
     
     if opt.stepthrough then
@@ -161,10 +168,15 @@ while step < opt.steps do
         if isGoalReached and opt.subgoal_index < opt.max_subgoal_index then 
             screen,reward, terminal = game_env:newGame()  -- restart game if focussing on single subgoal
             subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+            if opt.subgoal_screen then
+                screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+            end
+
             isGoalReached = false
         end
 
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
+        screen, reward, terminal = game_env:step(game_actions[1], true) -- noop
         episode_step_counter = episode_step_counter + 1
         -- screen, reward, terminal = game_env:step(game_actions[1], true)
         prev_Q = qfunc 
@@ -195,16 +207,19 @@ while step < opt.steps do
         else
             subgoal = agent:pick_subgoal(screen)
         end
+
         isGoalReached = false
     end
 
 
     -- display screen
     if opt.display_game then
-        screen_cropped = screen:clone()
-        screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-        screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        win = image.display({image=screen_cropped, win=win})
+        if not opt.subgoal_screen then
+            screen_cropped = screen:clone()
+            screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+            screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+            win = image.display({image=screen_cropped, win=win})
+        end
     end
 
     if step % opt.prog_freq == 0 then
@@ -232,6 +247,10 @@ while step < opt.steps do
 
         screen, reward, terminal = game_env:newGame()
         subgoal = agent:pick_subgoal(screen)
+        if opt.subgoal_screen then
+            screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        end
+
 
         test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
         test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
@@ -248,6 +267,12 @@ while step < opt.steps do
         for estep=1,opt.eval_steps do
             xlua.progress(estep, opt.eval_steps)
 
+
+            if opt.subgoal_screen then
+                screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+                win = image.display({image=screen, win=win})
+            end
+
             local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
 
 
@@ -256,9 +281,10 @@ while step < opt.steps do
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
+            screen, reward, terminal = game_env:step(game_actions[1])
 
             -- display screen
-            if opt.display_game then
+            if opt.display_game and not opt.subgoal_screen then
                 screen_cropped = screen:clone()
                 screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
                 screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
@@ -287,9 +313,10 @@ while step < opt.steps do
                 end
             end
             if isGoalReached then
-                subgoal = agent:pick_subgoal(screen, 7)
+                subgoal = agent:pick_subgoal(screen)
                 isGoalReached = false
             end
+
         end
 
         eval_time = sys.clock() - eval_time
