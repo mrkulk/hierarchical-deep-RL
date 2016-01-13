@@ -249,7 +249,7 @@ function nql:getQUpdate(args, external_r)
 
     -- Compute max_a Q(s_2, a).
     -- print(s2:size(), subgoals2:size())
-    q2_max = target_q_net:forward({s2, subgoals2}):float():max(2)
+    q2_max = target_q_net:forward({s2, subgoals2:zero()}):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
 
@@ -272,7 +272,7 @@ function nql:getQUpdate(args, external_r)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = args.network:forward({s, subgoals}):float()
+    local q_all = args.network:forward({s, subgoals:zero()}):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -306,7 +306,11 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
         r = r[{{},1}] --extract external reward
         subgoals[{{},{1,self.subgoal_dims}}] = 0
         subgoals2[{{},{1,self.subgoal_dims}}] = 0
-    else
+        if SUBGOAL_SCREEN then
+            -- TODO
+        end
+
+    else    
         r = r[{{},2}] --external + intrinsic reward 
     end
 
@@ -427,7 +431,7 @@ function nql:pick_subgoal(rawstate, oid)
 
     -- zeroing out discrete objects
     -- ftrvec:zero()
-
+  
     return torch.cat(subg, ftrvec)
 end
 
@@ -436,7 +440,7 @@ function nql:isGoalReached(subgoal, objects)
 
     -- IMP: remember that subgoal includes both subgoal and all objects
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 13 then --just a small threshold to indicate when agent meets subgoal (euc dist)
+    if dist < 10 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
@@ -465,10 +469,12 @@ function nql:intrinsic_reward(subgoal, objects)
         reward = 0
     end
 
-
+    
     if not self.use_distance then
         reward = 0 -- no intrinsic reward except for reaching the subgoal
     end
+
+    -- print(reward)
     return reward
 end
 
@@ -629,7 +635,7 @@ function nql:greedy(state, subgoal)
         state = state:cuda()
         subgoal = subgoal:cuda()
     end
-    local q = self.network:forward({state, subgoal}):float():squeeze()
+    local q = self.network:forward({state, subgoal:zero()}):float():squeeze()
     local maxq = q[1]
     local besta = {1}
     -- print("Q Value:", q)

@@ -37,8 +37,10 @@ cmd:option('-csv_file', '', 'CSV path to write session data')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-port', 5550, 'Port for zmq connection')
-cmd:option('-stepthrough', false, 'Stepthrough')
-cmd:option('-human_input', false, 'Human input action')
+cmd:option('-stepthrough', true, 'Stepthrough')
+cmd:option('-human_input', true, 'Human input action')
+cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
+
 
 
 cmd:text()
@@ -85,7 +87,7 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 7)
+subgoal = agent:pick_subgoal(screen, 6)
 --print('Subgoal:', subgoal)
 
 
@@ -97,6 +99,11 @@ local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right',
 while true or not terminal do
     -- if action was chosen randomly, Q-value is 0
     agent.bestq = 0
+
+    if opt.subgoal_screen then
+        screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        win = image.display({image=screen, win=win})
+    end
     
     -- choose the best action
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc 
@@ -140,12 +147,14 @@ while true or not terminal do
         subgoal = agent:pick_subgoal(screen)
     end
 
-    screen_cropped = screen:clone()
-    screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-    screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-    
-    -- display screen
-    image.display({image=screen_cropped, win=win})
+    if not opt.subgoal_screen then
+        screen_cropped = screen:clone()
+        screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+        screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        
+        -- display screen
+        image.display({image=screen_cropped, win=win})
+    end
 
     -- create gd image from tensor
     jpg = image.compressJPG(screen:squeeze(), 100)
