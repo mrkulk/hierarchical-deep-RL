@@ -29,7 +29,7 @@ cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
-cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
+cmd:option('-seed', torch.random(1,1000), 'fixed input seed for repeatable experiments')
 
 cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
@@ -82,7 +82,7 @@ while not terminal do
     agent.bestq = 0
     
     -- choose the best action
-    local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+    local action_index = agent:perceive(reward, screen, terminal, true, 0.1)
 
     -- play game in test mode (episodes don't end when losing a life)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)

@@ -1,3 +1,5 @@
+*.t7
+structured_priority/dqn/logs
 slurm_logs
 dqn/*.png
 *~
