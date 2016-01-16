@@ -24,6 +24,7 @@ function trans:__init(args)
     self.gpu = args.gpu
     self.numEntries = 0
     self.insertIndex = 0
+    self.ptrInsertIndex = 1
 
     self.histIndices = {}
     local histLen = self.histLen
@@ -54,11 +55,14 @@ function trans:__init(args)
 
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
-    self.r = torch.zeros(self.maxSize,2)
-    self.subgoal_dims = args.subgoal_dims*9 --TODO (total number of objects)
-    self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims) 
+    self.r = torch.zeros(self.maxSize, 2)
     self.t = torch.ByteTensor(self.maxSize):fill(0)
     self.action_encodings = torch.eye(self.numActions)
+    self.end_ptrs = {}
+    self.dyn_ptrs = {}
+    self.trace_indxs_with_reward = {}
+    self.subgoal_dims = args.subgoal_dims*9 --TODO (total number of objects)
+    self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims) 
 
     -- Tables for storing the last histLen states.  They are used for
     -- constructing the most recent agent state more easily.
@@ -69,13 +73,14 @@ function trans:__init(args)
 
     local s_size = self.stateDim*histLen
     self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
-    self.buf_r      = torch.zeros(self.bufferSize,2)
+    self.buf_r      = torch.zeros(self.bufferSize,2 )
     self.buf_term   = torch.ByteTensor(self.bufferSize):fill(0)
     self.buf_s      = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_subgoal = torch.zeros(self.bufferSize, self.subgoal_dims)
     self.buf_subgoal2 = torch.zeros(self.bufferSize, self.subgoal_dims)
     
+
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
         self.gpu_s2 = self.buf_s2:float():cuda()
@@ -88,6 +93,7 @@ end
 function trans:reset()
     self.numEntries = 0
     self.insertIndex = 0
+    self.ptrInsertIndex = 1
 end
 
 
@@ -101,13 +107,13 @@ function trans:empty()
 end
 
 
-function trans:fill_buffer()
+function trans:fill_buffer(network_type)
     assert(self.numEntries >= self.bufferSize)
     -- clear CPU buffers
     self.buf_ind = 1
     local ind
     for buf_ind=1,self.bufferSize do
-        local s, a, r, s2, term, subgoal, subgoal2 = self:sample_one(1)
+        local s, a, r, s2, term, subgoal, subgoal2 = self:sample_one(1, network_type)
         self.buf_s[buf_ind]:copy(s)
         self.buf_a[buf_ind] = a
         self.buf_subgoal[buf_ind] = subgoal
@@ -126,42 +132,97 @@ function trans:fill_buffer()
     end
 end
 
-
-function trans:sample_one()
-    assert(self.numEntries > 1)
-    local index
-    local valid = false
-    while not valid do
-        -- start at 2 because of previous action
-        index = torch.random(2, self.numEntries-self.recentMemSize)
-        if self.t[index+self.recentMemSize-1] == 0 then
-            valid = true
-        end
-        if self.nonTermProb < 1 and self.t[index+self.recentMemSize] == 0 and
-            torch.uniform() > self.nonTermProb then
-            -- Discard non-terminal states with probability (1-nonTermProb).
-            -- Note that this is the terminal flag for s_{t+1}.
-            valid = false
-        end
-        if self.nonEventProb < 1 and self.t[index+self.recentMemSize] == 0 and
-            self.r[index+self.recentMemSize-1] == 0 and
-            torch.uniform() > self.nonTermProb then
-            -- Discard non-terminal or non-reward states with
-            -- probability (1-nonTermProb).
-            valid = false
-        end
+function trans:get_size(tab)
+    if tab == nil then return 0 end
+    local Count = 0
+    for Index, Value in pairs(tab) do
+      Count = Count + 1
     end
+    return Count
+end
 
+function trans:get_canonical_indices()
+    local indx;
+    local index = -1
+    while index <= 0 do
+        indx = torch.random(#self.end_ptrs-1)
+        index = self.dyn_ptrs[indx] - self.recentMemSize + 1
+    end
+    return indx, index
+end
+
+function trans:sample_one(network_type)
+    assert(self.numEntries > 1)
+    assert(#self.end_ptrs == #self.dyn_ptrs)
+    -- print(self.end_ptrs)
+    local index = -1
+    local indx
+    if network_type == 'subgoal_network' then    
+        indx, index = self:get_canonical_indices()
+        -- print('\n--------------------')
+        -- print('END:', self.end_ptrs, index)
+        -- print('DYN:', self.dyn_ptrs)
+        -- print(indx, index)
+    else -- for behavior network, prioritize on reward 
+
+        local eps = 0.5; 
+        if torch.uniform() > eps or self:get_size(self.trace_indxs_with_reward) <= 0 then 
+            indx, index = self:get_canonical_indices()
+        else
+            -- with prob eps, randomly sample
+            -- or prioritize and pick from stored transitions with rewards
+            --this is only executed if #self.trace_indxs_with_reward > 0
+            while index <= 0  do 
+                local keyset={}; local n=0;
+                for k,v in pairs(self.trace_indxs_with_reward) do
+                    if k <= self.maxSize - self.histLen + 1 then
+                        n=n+1
+                        keyset[n]=k    
+                    end
+                end
+                -- print('K:', keyset)
+                if #keyset == 0 then 
+                    indx, index = self:get_canonical_indices()
+                    break
+                end
+                local mem_indx = keyset[torch.random(#keyset)]   
+                -- print('mem_indx:', mem_indx)
+                -- print('R:', self.trace_indxs_with_reward)
+                -- print('DYN:', self.dyn_ptrs)
+                -- print('mem_indx:', mem_indx)
+                -- print('END:', self.end_ptrs)
+                for k,v in pairs(self.end_ptrs) do
+                    if v == mem_indx then
+                        indx = k
+                    end
+                end
+                index = self.dyn_ptrs[indx] - self.recentMemSize + 1
+                -- this is a corner case: when there is only 2 eps (fix this TODO) with reward but index is zero
+                if index <= 0 and self:get_size(self.trace_indxs_with_reward) <= 2 then
+                    indx, index = self:get_canonical_indices()
+                    -- print('INDEX:', index)
+                    break
+                end
+            end
+        end
+
+    end
+    -- print(index, indx)
+    self.dyn_ptrs[indx] = self.dyn_ptrs[indx] - 1
+    if self.dyn_ptrs[indx] <= 0 or self.dyn_ptrs[indx] == self.end_ptrs[indx-1] then
+        self.dyn_ptrs[indx] = self.end_ptrs[indx]
+    end
     return self:get(index)
 end
 
 
-function trans:sample(batch_size)
+
+function trans:sample(batch_size, network_type)
     local batch_size = batch_size or 1
     assert(batch_size < self.bufferSize)
 
     if not self.buf_ind or self.buf_ind + batch_size - 1 > self.bufferSize then
-        self:fill_buffer()
+        self:fill_buffer(network_type)
     end
 
     local index = self.buf_ind
@@ -219,9 +280,8 @@ function trans:concatFrames(index, use_recent)
 
     -- Copy frames from the current episode.
     for i=episode_start,self.histLen do
-        fullstate[i]:copy(s[index+self.histIndices[i]-1])
+        fullstate[i]:copy(s[index+self.histIndices[i]-1])  
     end
-
     return fullstate, subgoal
 end
 
@@ -270,8 +330,11 @@ end
 
 function trans:get_recent()
     -- Assumes that the most recent state has been added, but the action has not
+    -- return self:concatFrames(1, true):float():div(255)
+    
     local fullstate, subgoal = self:concatFrames(1,true)
     return fullstate:float():div(255), subgoal
+
 end
 
 
@@ -279,6 +342,7 @@ function trans:get(index)
     local s, subgoal = self:concatFrames(index)
     local s2, subgoal2 = self:concatFrames(index+1)
     local ar_index = index+self.recentMemSize-1
+    -- print(index)
     return s, self.a[ar_index], self.r[ar_index], s2, self.t[ar_index+1], self.subgoal[ar_index], self.subgoal[ar_index+1]
 end
 
@@ -295,9 +359,13 @@ function trans:add(s, a, r, term, subgoal)
 
     -- Always insert at next index, then wrap around
     self.insertIndex = self.insertIndex + 1
+
+
+
     -- Overwrite oldest experience once at capacity
     if self.insertIndex > self.maxSize then
         self.insertIndex = 1
+        self.ptrInsertIndex = 1
     end
 
     -- Overwrite (s,a,r,t) at insertIndex
@@ -306,8 +374,20 @@ function trans:add(s, a, r, term, subgoal)
     self.r[self.insertIndex] = r
     self.subgoal[self.insertIndex] = subgoal
 
+    if r[1] > 0 then --if extrinsic reward is non-zero, record this!
+        self.trace_indxs_with_reward[self.insertIndex] = 1
+    end
+
+    if self.end_ptrs[self.ptrInsertIndex] == self.insertIndex then
+        table.remove(self.end_ptrs,self.ptrInsertIndex)
+        table.remove(self.dyn_ptrs,self.ptrInsertIndex)
+        self.trace_indxs_with_reward[self.insertIndex] = nil
+    end
     if term then
         self.t[self.insertIndex] = 1
+        table.insert(self.end_ptrs, self.ptrInsertIndex, self.insertIndex)
+        table.insert(self.dyn_ptrs, self.ptrInsertIndex, self.insertIndex)
+        self.ptrInsertIndex = self.ptrInsertIndex + 1
     else
         self.t[self.insertIndex] = 0
     end
@@ -337,7 +417,6 @@ function trans:add_recent_state(s, term, subgoal)
     if #self.recent_s > self.recentMemSize then
         table.remove(self.recent_s, 1)
         table.remove(self.recent_t, 1)
-        table.remove(self.recent_subgoal, 1)
     end
 end
 
@@ -410,7 +489,6 @@ function trans:read(file)
     self.recent_s = {}
     self.recent_a = {}
     self.recent_t = {}
-    self.recent_subgoal = {}
 
     self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
     self.buf_r      = torch.zeros(self.bufferSize, 2)
