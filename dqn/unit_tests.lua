@@ -33,10 +33,11 @@ local function trans_table()
 
         for kk=1,5 do
 			s, a, r, s2, t, sg, sg2= transitions:sample(8)
-			print(r)
+			-- print(r)
         	-- print('After sample DYN:', transitions.dyn_ptrs)
     	end
 	end
+	print('[Transition Table with Prioritization] Success!')
 end
 
 trans_table() -- testing transition table

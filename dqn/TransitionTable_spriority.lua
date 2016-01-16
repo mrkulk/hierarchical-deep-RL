@@ -107,13 +107,13 @@ function trans:empty()
 end
 
 
-function trans:fill_buffer(network_type)
+function trans:fill_buffer()
     assert(self.numEntries >= self.bufferSize)
     -- clear CPU buffers
     self.buf_ind = 1
     local ind
     for buf_ind=1,self.bufferSize do
-        local s, a, r, s2, term, subgoal, subgoal2 = self:sample_one(1, network_type)
+        local s, a, r, s2, term, subgoal, subgoal2 = self:sample_one(1)
         self.buf_s[buf_ind]:copy(s)
         self.buf_a[buf_ind] = a
         self.buf_subgoal[buf_ind] = subgoal
@@ -151,61 +151,52 @@ function trans:get_canonical_indices()
     return indx, index
 end
 
-function trans:sample_one(network_type)
+function trans:sample_one()
     assert(self.numEntries > 1)
     assert(#self.end_ptrs == #self.dyn_ptrs)
     -- print(self.end_ptrs)
     local index = -1
     local indx
-    if network_type == 'subgoal_network' then    
-        indx, index = self:get_canonical_indices()
-        -- print('\n--------------------')
-        -- print('END:', self.end_ptrs, index)
-        -- print('DYN:', self.dyn_ptrs)
-        -- print(indx, index)
-    else -- for behavior network, prioritize on reward 
 
-        local eps = 0.5; 
-        if torch.uniform() > eps or self:get_size(self.trace_indxs_with_reward) <= 0 then 
-            indx, index = self:get_canonical_indices()
-        else
-            -- with prob eps, randomly sample
-            -- or prioritize and pick from stored transitions with rewards
-            --this is only executed if #self.trace_indxs_with_reward > 0
-            while index <= 0  do 
-                local keyset={}; local n=0;
-                for k,v in pairs(self.trace_indxs_with_reward) do
-                    if k <= self.maxSize - self.histLen + 1 then
-                        n=n+1
-                        keyset[n]=k    
-                    end
-                end
-                -- print('K:', keyset)
-                if #keyset == 0 then 
-                    indx, index = self:get_canonical_indices()
-                    break
-                end
-                local mem_indx = keyset[torch.random(#keyset)]   
-                -- print('mem_indx:', mem_indx)
-                -- print('R:', self.trace_indxs_with_reward)
-                -- print('DYN:', self.dyn_ptrs)
-                -- print('mem_indx:', mem_indx)
-                -- print('END:', self.end_ptrs)
-                for k,v in pairs(self.end_ptrs) do
-                    if v == mem_indx then
-                        indx = k
-                    end
-                end
-                index = self.dyn_ptrs[indx] - self.recentMemSize + 1
-                -- this is a corner case: when there is only 2 eps (fix this TODO) with reward but index is zero
-                if index <= 0 and self:get_size(self.trace_indxs_with_reward) <= 2 then
-                    indx, index = self:get_canonical_indices()
-                    -- print('INDEX:', index)
-                    break
+    local eps = 0.5; 
+    if torch.uniform() > eps or self:get_size(self.trace_indxs_with_reward) <= 0 then 
+        --randomly sample without prioritization
+        indx, index = self:get_canonical_indices()
+    else
+        -- prioritize and pick from stored transitions with rewards
+        --this is only executed if #self.trace_indxs_with_reward > 0, i.e. only if agent has received external reward
+        while index <= 0  do 
+            local keyset={}; local n=0;
+            for k,v in pairs(self.trace_indxs_with_reward) do
+                if k <= self.maxSize - self.histLen + 1 then
+                    n=n+1
+                    keyset[n]=k    
                 end
             end
+            -- print('K:', keyset)
+            if #keyset == 0 then 
+                indx, index = self:get_canonical_indices()
+                break
+            end
+            local mem_indx = keyset[torch.random(#keyset)]   
+            -- print('mem_indx:', mem_indx)
+            -- print('R:', self.trace_indxs_with_reward)
+            -- print('DYN:', self.dyn_ptrs)
+            -- print('mem_indx:', mem_indx)
+            -- print('END:', self.end_ptrs)
+            for k,v in pairs(self.end_ptrs) do
+                if v == mem_indx then
+                    indx = k
+                end
+            end
+            index = self.dyn_ptrs[indx] - self.recentMemSize + 1
+            -- this is a corner case: when there is only 2 eps (fix this TODO) with reward but index is zero
+            if index <= 0 and self:get_size(self.trace_indxs_with_reward) <= 2 then
+                indx, index = self:get_canonical_indices()
+                -- print('INDEX:', index)
+                break
+            end
         end
-
     end
     -- print(index, indx)
     self.dyn_ptrs[indx] = self.dyn_ptrs[indx] - 1
@@ -217,12 +208,12 @@ end
 
 
 
-function trans:sample(batch_size, network_type)
+function trans:sample(batch_size)
     local batch_size = batch_size or 1
     assert(batch_size < self.bufferSize)
 
     if not self.buf_ind or self.buf_ind + batch_size - 1 > self.bufferSize then
-        self:fill_buffer(network_type)
+        self:fill_buffer()
     end
 
     local index = self.buf_ind
