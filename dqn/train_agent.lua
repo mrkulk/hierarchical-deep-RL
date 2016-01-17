@@ -1,7 +1,5 @@
 --[[
-Copyright (c) 2014 Google Inc.
-
-See LICENSE file for full terms of limited license.
+./run_gpu montezuma_revenge basic1 5550 12 true
 ]]
 require 'xlua'
 require 'optim'
@@ -47,8 +45,8 @@ cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
-cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', true, 'option to display game')
+cmd:option('-subgoal_nhid', 100, '')
+cmd:option('-display_game', false, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', false, 'overlay subgoal on screen')

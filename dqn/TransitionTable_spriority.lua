@@ -339,6 +339,7 @@ end
 
 
 function trans:add(s, a, r, term, subgoal)
+    -- print('TT:', term, r)
     assert(s, 'State cannot be nil')
     assert(a, 'Action cannot be nil')
     assert(r, 'Reward cannot be nil')
@@ -382,6 +383,7 @@ function trans:add(s, a, r, term, subgoal)
     else
         self.t[self.insertIndex] = 0
     end
+    -- print(#self.end_ptrs, term)
 end
 
 

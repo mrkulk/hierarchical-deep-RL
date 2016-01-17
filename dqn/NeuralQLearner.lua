@@ -581,7 +581,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     else
         -- print("LAST SUBGOAL is now NIL")
-        self.lastSubgoal = nil
+        -- self.lastSubgoal = nil --TODO check
     end
 
     self.lastobjects = objects
@@ -638,7 +638,9 @@ function nql:greedy(state, subgoal)
         state = state:cuda()
         subgoal = subgoal:cuda()
     end
-    local q = self.network:forward({state, subgoal:zero()}):float():squeeze()
+    -- local q = self.network:forward({state, subgoal:zero()}):float():squeeze()
+    local q = self.network:forward({state, subgoal}):float():squeeze()
+    
     local maxq = q[1]
     local besta = {1}
     -- print("Q Value:", q)
@@ -692,6 +694,6 @@ function nql:report()
             print("Subgoal " , subg ,  ' : ')
         end
     end
-    self.subgoal_success = {}
-    self.subgoal_total = {}
+    -- self.subgoal_success = {}
+    -- self.subgoal_total = {}
 end
