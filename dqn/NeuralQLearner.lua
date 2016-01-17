@@ -416,9 +416,9 @@ end
 
 function nql:pick_subgoal(rawstate, oid)
     local objects = self:get_objects(rawstate)
-    local indxs = oid or torch.random(2, #objects) -- first is the agent
+    local indxs = oid or torch.random(3, #objects) -- skip first two as first is agent is the agent
     while objects[indxs]:sum() == 0 do -- object absent
-        indxs = torch.random(2, #objects) -- first is the agent
+        indxs = torch.random(3, #objects) -- skip first two as first is agent is the agent
     end
     
     -- concatenate subgoal with objects (input into network)
@@ -434,7 +434,7 @@ function nql:pick_subgoal(rawstate, oid)
 
     -- zeroing out discrete objects
     -- ftrvec:zero()
-  
+    self.objects = objects
     return torch.cat(subg, ftrvec)
 end
 

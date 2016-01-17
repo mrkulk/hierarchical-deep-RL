@@ -35,6 +35,7 @@ class Recognizer:
 		mean_y = np.sum(indxs[0]) / np.shape(indxs[0])[0]
 		mean_x = np.sum(indxs[1]) / np.shape(indxs[1])[0]
 		return (mean_y, mean_x) #flipped co-ords due to numpy blob detect
+		# return (mean_x, mean_y)
 
 	def template_detect(self, img, id):
 		template = cv2.imread('templates/' + id + '.png')
@@ -124,7 +125,7 @@ def unit_test():
 
 rec = Recognizer()
 
-img_rgb = cv2.imread('image2.png')
+img_rgb = cv2.imread('tmp.png')
 im_score = img_rgb[15:20, 55:95, :]
 img_rgb = img_rgb[30:,:,:]
 coords = rec.get(img_rgb)
@@ -147,7 +148,7 @@ while True:
     objects_list[1] = objects_list2[1]
     if objects_list[1][0] == 0 and objects_list[1][1] == 0:
     	objects_list[1][3] = 0
-
+    print(len(objects_list))
     socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
     # socket.send("World from %s" % str(coords))
     # print(rec.get_lives(im_score))

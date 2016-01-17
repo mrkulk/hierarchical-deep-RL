@@ -127,6 +127,9 @@ while step < opt.steps do
     step = step + 1
 
     if opt.subgoal_screen then
+        -- for i=3,#agent.objects do
+        --     screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
+        -- end
         screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         win = image.display({image=screen, win=win})
     end
