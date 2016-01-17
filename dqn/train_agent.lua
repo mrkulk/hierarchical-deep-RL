@@ -237,7 +237,7 @@ while step < opt.steps do
     --     agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
     -- end
 
-    if step%1000 == 0 then collectgarbage() end
+    if step%500 == 0 then collectgarbage() end
 
     -- evaluation
     if step % opt.eval_freq == 0 and step > learn_start then
