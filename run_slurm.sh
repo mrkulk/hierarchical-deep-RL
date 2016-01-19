@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 2
 #SBATCH -p general
-#SBATCH --mem 50000
+#SBATCH --mem 70000
 #SBATCH -t 5-23:00
 #SBATCH --mail-user=tejask@mit.edu
 
