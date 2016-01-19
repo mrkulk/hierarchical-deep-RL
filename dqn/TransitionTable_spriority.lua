@@ -189,7 +189,12 @@ function trans:sample_one()
                     indx = k
                 end
             end
-            index = self.dyn_ptrs[indx] - self.recentMemSize + 1
+            if indx then
+                index = self.dyn_ptrs[indx] - self.recentMemSize + 1
+            else
+                indx, index = self:get_canonical_indices()
+                break
+            end
             -- this is a corner case: when there is only 2 eps (fix this TODO) with reward but index is zero
             if index <= 0 and self:get_size(self.trace_indxs_with_reward) <= 2 then
                 indx, index = self:get_canonical_indices()

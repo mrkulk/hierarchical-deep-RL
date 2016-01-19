@@ -148,7 +148,7 @@ while True:
     objects_list[1] = objects_list2[1]
     if objects_list[1][0] == 0 and objects_list[1][1] == 0:
     	objects_list[1][3] = 0
-    print(len(objects_list))
+    # print(len(objects_list))
     socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
     # socket.send("World from %s" % str(coords))
     # print(rec.get_lives(im_score))

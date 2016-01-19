@@ -483,6 +483,10 @@ end
 
 
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
+    if reward > 0 then
+        print('external reward nonzero!  [val:',reward, ']')
+    end
+    
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
         reward = -200
