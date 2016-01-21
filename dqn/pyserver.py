@@ -125,7 +125,7 @@ def unit_test():
 
 rec = Recognizer()
 
-img_rgb = cv2.imread('tmp.png')
+img_rgb = cv2.imread('base.png')
 im_score = img_rgb[15:20, 55:95, :]
 img_rgb = img_rgb[30:,:,:]
 coords = rec.get(img_rgb)
@@ -148,6 +148,12 @@ while True:
     objects_list[1] = objects_list2[1]
     if objects_list[1][0] == 0 and objects_list[1][1] == 0:
     	objects_list[1][3] = 0
+
+    assert len(objects_list) == len(objects_list2)    
+    for ii in range(len(objects_list)):
+    	if objects_list2[ii][0] == 0 and objects_list2[ii][1] == 0:
+    		objects_list[ii] = objects_list2[ii]
+
     # print(len(objects_list))
     socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
     # socket.send("World from %s" % str(coords))

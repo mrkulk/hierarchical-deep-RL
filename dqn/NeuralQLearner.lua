@@ -184,8 +184,9 @@ function nql:__init(args)
 
     if self.target_q then
         self.target_network = self.network:clone()
-        self.target_network_real = self.network_real:clone()
         self.w_target, self.dw_target = self.target_network:getParameters()
+
+        self.target_network_real = self.network_real:clone()
         self.w_real_target, self.dw_real_target = self.target_network_real:getParameters()
     end
 end
@@ -420,7 +421,7 @@ function nql:pick_subgoal(rawstate, oid)
     while objects[indxs]:sum() == 0 do -- object absent
         indxs = torch.random(3, #objects) -- skip first two as first is agent is the agent
     end
-    
+
     -- concatenate subgoal with objects (input into network)
     local subg = objects[indxs]
     local ftrvec = torch.zeros(#objects*self.subgoal_dims)
@@ -443,7 +444,7 @@ function nql:isGoalReached(subgoal, objects)
 
     -- IMP: remember that subgoal includes both subgoal and all objects
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 10 then --just a small threshold to indicate when agent meets subgoal (euc dist)
+    if dist < 8 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)

@@ -1,5 +1,5 @@
 --[[
-./run_gpu montezuma_revenge basic1 5550 12 true
+./run_gpu montezuma_revenge basic1 5550 12 false
 ]]
 require 'xlua'
 require 'optim'
@@ -46,7 +46,7 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 100, '')
-cmd:option('-display_game', false, 'option to display game')
+cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', false, 'overlay subgoal on screen')
@@ -126,11 +126,14 @@ while step < opt.steps do
 
     step = step + 1
 
-    if opt.subgoal_screen then
-        -- for i=3,#agent.objects do
-        --     screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
-        -- end
-        screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    if opt.subgoal_screen then        
+        for i=3,#agent.objects do
+            if agent.objects[i][1] > 0 and agent.objects[i][2] > 0 then
+                screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
+            end
+        end
+
+        -- screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         win = image.display({image=screen, win=win})
     end
 
@@ -237,7 +240,7 @@ while step < opt.steps do
     --     agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
     -- end
 
-    if step%500 == 0 then collectgarbage() end
+    if step%1000 == 0 then collectgarbage() end
 
     -- evaluation
     if step % opt.eval_freq == 0 and step > learn_start then

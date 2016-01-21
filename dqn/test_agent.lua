@@ -37,9 +37,9 @@ cmd:option('-csv_file', '', 'CSV path to write session data')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-port', 5550, 'Port for zmq connection')
-cmd:option('-stepthrough', true, 'Stepthrough')
-cmd:option('-human_input', true, 'Human input action')
-cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
+cmd:option('-stepthrough', false, 'Stepthrough')
+cmd:option('-human_input', false, 'Human input action')
+cmd:option('-subgoal_screen', false, 'overlay subgoal on screen')
 
 
 
@@ -146,6 +146,7 @@ while true or not terminal do
     if isGoalReached then
         subgoal = agent:pick_subgoal(screen)
     end
+
 
     if not opt.subgoal_screen then
         screen_cropped = screen:clone()

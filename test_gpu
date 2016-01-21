@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#./test_gpu montezuma_revenge logs/basic1/basic1_montezuma_revenge_FULL_Y.t7 5550
 if [ -z "$1" ]
   then echo "Please provide the name of the game, e.g.  ./watch_pretrained breakout"; exit 0
 fi
