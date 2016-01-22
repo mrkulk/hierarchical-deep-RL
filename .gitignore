@@ -3,7 +3,6 @@ structured_priority/slurm_scripts
 structured_priority/dqn/logs
 dqn/logs
 slurm_logs
-dqn/*.png
 *~
 torch
 dqn/*.t7
