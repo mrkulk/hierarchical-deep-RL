@@ -15,7 +15,7 @@ prog_freq=10000 #1024
 save_freq=10000 #1024
 replay_memory=1000000 #2000
 eps_end=0.1 #0.1
-eps_endt=500000 #replay_memory
+eps_endt=replay_memory
 
 
 ENV=$1

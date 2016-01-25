@@ -82,7 +82,7 @@ class Recognizer:
 
 		objects_list.append([objects['man'][0], objects['man'][1]] + self.get_onehot(self.map['man']))
 		objects_list.append([objects['skull'][0], objects['skull'][1]] + self.get_onehot(self.map['skull']))
-		
+
 		for obj, val in objects.items():
 			# print(obj, val)
 			if obj is not 'man' and obj is not 'skull':
@@ -150,9 +150,11 @@ while True:
     	objects_list[1][3] = 0
 
     assert len(objects_list) == len(objects_list2)    
-    for ii in range(len(objects_list)):
-    	if objects_list2[ii][0] == 0 and objects_list2[ii][1] == 0:
-    		objects_list[ii] = objects_list2[ii]
+    # for ii in range(len(objects_list)):
+    # 	if objects_list2[ii][0] == 0 and objects_list2[ii][1] == 0:
+    # 		print('Lost something!')
+    # 		objects_list[ii] = objects_list2[ii]
+    		# print(objects_list2[ii])
 
     # print(len(objects_list))
     socket.send('objlist = '+json.dumps(objects_list).replace('[','{').replace(']','}'))
