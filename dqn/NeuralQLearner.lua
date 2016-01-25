@@ -524,7 +524,6 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     self.transitions:add_recent_state(state, terminal, subgoal)  
 
     -- local currentFullState = self.transitions:get_recent()
-
     --Store transition s, a, r, s'
     if self.lastState and not testing and self.lastSubgoal then
         self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),

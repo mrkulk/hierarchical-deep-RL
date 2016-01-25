@@ -60,7 +60,9 @@ function trans:__init(args)
     self.action_encodings = torch.eye(self.numActions)
     self.end_ptrs = {}
     self.dyn_ptrs = {}
-    self.trace_indxs_with_reward = {}
+    self.trace_indxs_with_extreward = {} --extrinsic reward
+    self.trace_indxs_with_intreward = {} --intrinsic reward
+    
     self.subgoal_dims = args.subgoal_dims*9 --TODO (total number of objects)
     self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims) 
 
@@ -158,16 +160,27 @@ function trans:sample_one()
     local index = -1
     local indx
 
+    --- choose to either select traces with external or internal reward
+    local chosen_trace_indxs = trace_indxs_with_extreward
+    if self:get_size(self.trace_indxs_with_extreward) == 0 then
+        chosen_trace_indxs = self.trace_indxs_with_intreward
+    else
+        if torch.uniform() > 0.5 then
+            chosen_trace_indxs = self.trace_indxs_with_intreward
+        end
+    end
+
     local eps = 0.5; 
-    if torch.uniform() > eps or self:get_size(self.trace_indxs_with_reward) <= 0 then 
+
+    if torch.uniform() < eps or self:get_size(chosen_trace_indxs) <= 0 then 
         --randomly sample without prioritization
         indx, index = self:get_canonical_indices()
     else
         -- prioritize and pick from stored transitions with rewards
-        --this is only executed if #self.trace_indxs_with_reward > 0, i.e. only if agent has received external reward
+        --this is only executed if #chosen_trace_indxs > 0, i.e. only if agent has received external reward
         while index <= 0  do 
             local keyset={}; local n=0;
-            for k,v in pairs(self.trace_indxs_with_reward) do
+            for k,v in pairs(chosen_trace_indxs) do
                 if k <= self.maxSize - self.histLen + 1 then
                     n=n+1
                     keyset[n]=k    
@@ -180,7 +193,7 @@ function trans:sample_one()
             end
             local mem_indx = keyset[torch.random(#keyset)]   
             -- print('mem_indx:', mem_indx)
-            -- print('R:', self.trace_indxs_with_reward)
+            -- print('R:', chosen_trace_indxs)
             -- print('DYN:', self.dyn_ptrs)
             -- print('mem_indx:', mem_indx)
             -- print('END:', self.end_ptrs)
@@ -196,7 +209,7 @@ function trans:sample_one()
                 break
             end
             -- this is a corner case: when there is only 2 eps (fix this TODO) with reward but index is zero
-            if index <= 0 and self:get_size(self.trace_indxs_with_reward) <= 2 then
+            if index <= 0 and self:get_size(chosen_trace_indxs) <= 2 then
                 indx, index = self:get_canonical_indices()
                 -- print('INDEX:', index)
                 break
@@ -372,13 +385,19 @@ function trans:add(s, a, r, term, subgoal)
     self.subgoal[self.insertIndex] = subgoal
 
     if r[1] > 0 then --if extrinsic reward is non-zero, record this!
-        self.trace_indxs_with_reward[self.insertIndex] = 1
+        self.trace_indxs_with_extreward[self.insertIndex] = 1
     end
 
+    local intrinsic_reward = r[2] - r[1]
+    if intrinsic_reward > 0 then --if extrinsic reward is non-zero, record this!
+        self.trace_indxs_with_intreward[self.insertIndex] = 1
+    end
+    
     if self.end_ptrs[self.ptrInsertIndex] == self.insertIndex then
         table.remove(self.end_ptrs,self.ptrInsertIndex)
         table.remove(self.dyn_ptrs,self.ptrInsertIndex)
-        self.trace_indxs_with_reward[self.insertIndex] = nil
+        self.trace_indxs_with_extreward[self.insertIndex] = nil
+        self.trace_indxs_with_intreward[self.insertIndex] = nil 
     end
     if term then
         self.t[self.insertIndex] = 1

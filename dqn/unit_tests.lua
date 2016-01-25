@@ -23,7 +23,7 @@ local function trans_table()
 			for j=i,i+5 do
 				transitions:add(torch.rand(args.stateDim), 2, torch.Tensor({0, 0}), false, 1)
 			end
-			transitions:add(torch.rand(args.stateDim), 2, torch.Tensor({1, 0}), true, 1)
+			transitions:add(torch.rand(args.stateDim), 2, torch.Tensor({1, 2}), true, 1)
 		end
 		-- print('table # -> ', transitions:size())
         -- print('\n--------------------')

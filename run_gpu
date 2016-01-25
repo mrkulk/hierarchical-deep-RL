@@ -7,16 +7,25 @@ fi
 subgoal_index=${4:-12} # a number between 2 to 11 for now, 12 means not use any subgoal
 use_distance=${5:-false} #using distance to subgoal as a reward
 
-learn_start=50000 #1024
+learn_start=50000 
 steps=50000000
-eval_freq=30000 #1024
-eval_steps=10000 #1024
-prog_freq=10000 #1024
-save_freq=10000 #1024
-replay_memory=1000000 #2000
+eval_freq=30000 
+eval_steps=10000 
+prog_freq=10000 
+save_freq=10000 
+replay_memory=1000000
 eps_end=0.1 #0.1
 eps_endt=replay_memory
 
+# learn_start=1024
+# steps=50000000
+# eval_freq=1024
+# eval_steps=1024
+# prog_freq=1024
+# save_freq=1024
+# replay_memory=2000
+# eps_end=0.1 #0.1
+# eps_endt=500000 #replay_memory
 
 ENV=$1
 FRAMEWORK="alewrap"
