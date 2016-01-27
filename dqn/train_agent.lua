@@ -28,7 +28,7 @@ cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
-cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
+cmd:option('-seed', 10, 'fixed input seed for repeatable experiments')
 cmd:option('-saveNetworkParams', true,
            'saves the agent network in a separate file')
 cmd:option('-prog_freq', 5*10^3, 'frequency of progress output')
@@ -49,9 +49,9 @@ cmd:option('-subgoal_nhid', 100, '')
 cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
-cmd:option('-subgoal_screen', false, 'overlay subgoal on screen')
+cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
 
-cmd:option('-max_steps_episode', 5000, 'Max steps per episode')
+cmd:option('-max_steps_episode', 1000, 'Max steps per episode')
 
 
 
@@ -127,13 +127,13 @@ while step < opt.steps do
     step = step + 1
 
     if opt.subgoal_screen then        
-        for i=3,#agent.objects do
-            if agent.objects[i][1] > 0 and agent.objects[i][2] > 0 then
-                screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
-            end
-        end
+        -- for i=3,#agent.objects do
+        --     if agent.objects[i][1] > 0 and agent.objects[i][2] > 0 then
+        --         screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
+        --     end
+        -- end
 
-        -- screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         win = image.display({image=screen, win=win})
     end
 
@@ -163,7 +163,6 @@ while step < opt.steps do
         print("SUM OF PIXELS: ", screen:sum())
         new_game = false
     end    
-
 
     -- game over? get next game!
     if not terminal and  episode_step_counter < opt.max_steps_episode then
@@ -243,7 +242,8 @@ while step < opt.steps do
     if step%1000 == 0 then collectgarbage() end
 
     -- evaluation
-    if step % opt.eval_freq == 0 and step > learn_start then
+    -- TODO: make it true later
+    if false then ---step % opt.eval_freq == 0 and step > learn_start then
         print("Testing ...")
 
         local cum_reward_ext = 0

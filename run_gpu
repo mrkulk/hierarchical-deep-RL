@@ -7,7 +7,7 @@ fi
 subgoal_index=${4:-12} # a number between 2 to 11 for now, 12 means not use any subgoal
 use_distance=${5:-false} #using distance to subgoal as a reward
 
-learn_start=50000 
+learn_start=5000 #50000 
 steps=50000000
 eval_freq=30000 
 eval_steps=10000 
@@ -51,7 +51,7 @@ preproc_net="\"net_downsample_2x_full_y\""
 agent_name=$agent_type"_"$1"_FULL_Y"
 state_dim=7056
 ncols=1
-agent_params="use_distance="$use_distance",lr="$lr",ep=1,ep_end="$eps_end",ep_endt="$eps_endt",dynamic_discount="$dynamic_discount",discount="$discount",discount_internal="$discount_internal",hist_len=4,learn_start="$learn_start",replay_memory="$replay_memory",update_freq="$update_freq",n_replay="$n_replay",network="$netfile",preproc="$preproc_net",state_dim="$state_dim",minibatch_size=32,rescale_r=1,ncols="$ncols",bufferSize=512,valid_size=500,target_q=10000,clip_delta=10,min_reward=-1000,max_reward=1000"
+agent_params="use_distance="$use_distance",lr="$lr",ep=1,ep_end="$eps_end",ep_endt="$eps_endt",dynamic_discount="$dynamic_discount",discount="$discount",discount_internal="$discount_internal",hist_len=4,learn_start="$learn_start",replay_memory="$replay_memory",update_freq="$update_freq",n_replay="$n_replay",network="$netfile",preproc="$preproc_net",state_dim="$state_dim",minibatch_size=64,rescale_r=1,ncols="$ncols",bufferSize=512,valid_size=500,target_q=10000,clip_delta=10,min_reward=-1000,max_reward=1000"
 
 gpu=1
 random_starts=1  #need to make this 30 later for random starting points for comparison with original DQN

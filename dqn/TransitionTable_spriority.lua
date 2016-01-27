@@ -170,7 +170,7 @@ function trans:sample_one()
         end
     end
 
-    local eps = 0.5; 
+    local eps = 0.33; 
 
     if torch.uniform() < eps or self:get_size(chosen_trace_indxs) <= 0 then 
         --randomly sample without prioritization

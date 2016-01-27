@@ -88,7 +88,7 @@ local win = image.display({image=screen})
 print("Started playing...")
 
 subgoal = agent:pick_subgoal(screen, 6)
---print('Subgoal:', subgoal)
+-- print('Subgoal:', subgoal)
 
 
 local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
@@ -107,7 +107,7 @@ while true or not terminal do
     
     -- choose the best action
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc 
-    = agent:perceive(subgoal, reward, screen, terminal, true, 0.0)
+    = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
 
     local tmp2
 
@@ -151,7 +151,7 @@ while true or not terminal do
     if not opt.subgoal_screen then
         screen_cropped = screen:clone()
         screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-        screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        -- screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         
         -- display screen
         image.display({image=screen_cropped, win=win})

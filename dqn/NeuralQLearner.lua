@@ -189,6 +189,10 @@ function nql:__init(args)
         self.target_network_real = self.network_real:clone()
         self.w_real_target, self.dw_real_target = self.target_network_real:getParameters()
     end
+
+    --hack for testing (giving correct sequence of subgoals -- 7 6 8)
+    self.true_subgoal_order = {7,6,8}
+    self.true_subgoal_indx = 1
 end
 
 
@@ -308,8 +312,8 @@ function nql:qLearnMinibatch(network, target_network, dw, w, g, g2, tmp, deltas,
     -- print(r, s:sum(2))
     if external_r then
         r = r[{{},1}] --extract external reward
-        subgoals[{{},{1,self.subgoal_dims}}] = 0
-        subgoals2[{{},{1,self.subgoal_dims}}] = 0
+        -- subgoals[{{},{1,self.subgoal_dims}}] = 0
+        -- subgoals2[{{},{1,self.subgoal_dims}}] = 0
         if SUBGOAL_SCREEN then
             -- TODO
         end
@@ -422,20 +426,46 @@ function nql:pick_subgoal(rawstate, oid)
         indxs = torch.random(3, #objects) -- skip first two as first is agent is the agent
     end
 
-    -- concatenate subgoal with objects (input into network)
-    local subg = objects[indxs]
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    for i = 1,#objects do
-        ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
+    --- REMOVE: giving true subgoal sequence
+    self.true_subgoal_order = {7,6}
+
+    if self.true_subgoal_indx > #self.true_subgoal_order then
+        self.true_subgoal_indx = 1
+    end
+    --- pick subgoal --- TODO: remove this hack
+    local current_goal_id = self.true_subgoal_order[self.true_subgoal_indx]
+    if self.subgoal_success[current_goal_id] and self.subgoal_total[current_goal_id] then
+        if (self.subgoal_success[current_goal_id] / self.subgoal_total[current_goal_id]) >= 0.3 then
+            self.true_subgoal_indx = self.true_subgoal_indx + 1
+        end
     end
 
-    -- add stats
-    self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
-    self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
+    indxs = self.true_subgoal_order[self.true_subgoal_indx]
+    -- self.true_subgoal_indx = self.true_subgoal_indx + 1
+
+
+
+    -- concatenate subgoal with objects (input into network)
+    local subg = objects[indxs]
+
+    -- local ftrvec = torch.zeros(#objects*self.subgoal_dims)
+    -- for i = 1,#objects do
+    --     ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
+    -- end
+
+    -- -- add stats
+    -- self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
+    -- self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
+    self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
+    self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
 
     -- zeroing out discrete objects
     -- ftrvec:zero()
     self.objects = objects
+
+    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
+    ftrvec[indxs] = 1
+    ftrvec[#ftrvec] = indxs
     return torch.cat(subg, ftrvec)
 end
 
@@ -449,8 +479,11 @@ function nql:isGoalReached(subgoal, objects)
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
         local subg = subgoal[{{1, self.subgoal_dims}}]
-        self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
-        self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
+        -- subgoal[#subgoal] is just the subgoal ID
+        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] or 0
+        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] + 1
+        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
+        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
         return true
     else
         return false
@@ -543,7 +576,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local actionIndex = 1
     local qfunc
     if not terminal then
-        actionIndex, qfunc = self:eGreedy(curState, testing_ep, subgoal)
+        actionIndex, qfunc = self:eGreedy(curState, testing, testing_ep, subgoal)
     end
 
     -- actionIndex = 5 --left
@@ -610,28 +643,27 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 end
 
 
-function nql:eGreedy(state, testing_ep, subgoal)
+function nql:eGreedy(state, testing, testing_ep, subgoal)
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
 
     -- if testing, zero out subgoals
-    if testing_ep then
-	subgoal = subgoal:clone()
-        subgoal[{{1,self.subgoal_dims}}] = 0
-    end
+    -- if testing then
+	   --  subgoal = subgoal:clone()
+    --     subgoal[{{1,self.subgoal_dims}}] = 0
+    -- end
        
-
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
     else
-        return self:greedy(state, subgoal)
+        return self:greedy(state, subgoal, testing)
     end
 end
 
 
-function nql:greedy(state, subgoal)
+function nql:greedy(state, subgoal, testing)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')
@@ -693,9 +725,9 @@ function nql:report()
     -- print stats on subgoal success rates
     for subg, val in pairs(self.subgoal_total) do
         if self.subgoal_success[subg] then 
-            print("Subgoal " , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
+            print("Subgoal ID (8-key, 6/7-bottom ladders):" , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
         else
-            print("Subgoal " , subg ,  ' : ')
+            print("Subgoal ID (8-key, 6/7-bottom ladders):" , subg ,  ' : ')
         end
     end
     -- self.subgoal_success = {}
