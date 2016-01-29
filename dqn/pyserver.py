@@ -61,7 +61,7 @@ class Recognizer:
 
   def drawbbox(self, inputim, coords):
     img = copy.deepcopy(inputim)
-    for i in {'ladder', 'key', 'door'}:
+    for i in ['ladder', 'key', 'door']:
       for pt in zip(*coords[i][::-1]):
         cv2.rectangle(img, pt, (pt[0] + coords[i+'_w'], pt[1] + coords[i+'_h']), (0,0,255), 2)
     cv2.rectangle(img, (coords['man'][0] - 5, coords['man'][1] - 5), (coords['man'][0] + 5, coords['man'][1] + 5),  (0,0,255), 2)
