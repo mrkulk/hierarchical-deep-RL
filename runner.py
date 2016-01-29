@@ -49,4 +49,4 @@ for job in jobs:
         slurmfile.write(flagstring)
 
     if False:
-        os.system("sbatch -N 1 -c 2 --gres=gpu:1 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+        os.system("sbatch --mem=50000 -N 1 -c 2 --gres=gpu:1 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
