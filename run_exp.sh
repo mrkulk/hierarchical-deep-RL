@@ -1,4 +1,4 @@
-# example usage: ./run_gpu exp_name port subg_index use_distance
+# example usage: ./run_gpu exp_name port subg_index use_distance <eps_endt> <lr>
 cd dqn;
 python pyserver.py $2 &
 cd ..;

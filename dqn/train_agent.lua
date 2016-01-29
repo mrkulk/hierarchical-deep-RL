@@ -48,7 +48,7 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', true, 'option to display game')
+cmd:option('-display_game', false, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
@@ -130,7 +130,7 @@ while step < opt.steps do
 
     if opt.subgoal_screen then
         screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        win = image.display({image=screen, win=win})
+        -- win = image.display({image=screen, win=win})
     end
 
     -- for i=1,#agent.objects do

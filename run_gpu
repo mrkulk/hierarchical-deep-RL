@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -z "$1" ]
-  then echo "Please provide the name of the game and a log name and a port, e.g.  ./run_gpu breakout basic1 5000 <optional subgoal> <optinal use_distance>"; exit 0
+  then echo "Please provide the name of the game and a log name and a port, e.g.  ./run_gpu breakout basic1 5000 <optional subgoal> <optional use_distance> <optional eps_endt> <optional lr>"; exit 0
 fi
 
 subgoal_index=${4:-12} # a number between 2 to 11 for now, 12 means not use any subgoal
@@ -28,8 +28,8 @@ pool_frms_size=2
 initial_priority="false"
 replay_memory=1000000
 eps_end=0.1 #0.1
-eps_endt=500000 #replay_memory
-lr=0.00025
+eps_endt=${6:-500000} #500000 #replay_memory
+lr=${7:-0.00025} #0.00025
 agent_type=$2
 preproc_net="\"net_downsample_2x_full_y\""
 agent_name=$agent_type"_"$1"_FULL_Y"
@@ -51,4 +51,4 @@ args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -
 echo $args
 
 cd dqn
-qlua train_agent.lua $args
+th train_agent.lua $args
