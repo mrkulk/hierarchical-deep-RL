@@ -5,7 +5,7 @@ if [ -z "$1" ]
 fi
 
 subgoal_index=${4:-12} # a number between 2 to 11 for now, 12 means not use any subgoal
-use_distance=${5:-false} #using distance to subgoal as a reward
+use_distance=${5:-true} #using distance to subgoal as a reward
 
 
 ENV=$1
@@ -51,4 +51,4 @@ args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -
 echo $args
 
 cd dqn
-th train_agent.lua $args
+qlua train_agent.lua $args

@@ -111,7 +111,7 @@ def unit_test():
     except:
         print 'Using default image 1.png'
         img_id = '1'
-    img_rgb = cv2.imread('tmp.png')
+    img_rgb = cv2.imread('image2.png')
     im_score = img_rgb[15:20, 55:95, :]
     img_rgb = img_rgb[30:,:,:]
     coords = rec.get(img_rgb)
@@ -142,6 +142,7 @@ while True:
     # show(img)  
     objects_list = copy.deepcopy(objects_list_cache)
     objects_list2 = rec.process_objects(coords)
+    # print(objects_list2[0])
     #agent and skull is dynamic. everything else is static. TODO for key
     objects_list[0] = objects_list2[0] 
     objects_list[1] = objects_list2[1]

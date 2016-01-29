@@ -1,10 +1,4 @@
-if [ -z "$1" ]
-  then echo "Please provide the logname and port for running the experiment e.g.  ./run_exp basic1 5000 "; exit 0
-fi
-
-if [ -z "$2" ]
-  then echo "Please provide the logname and port for running the experiment e.g.  ./run_exp basic1 5000 "; exit 0
-fi
+# example usage: ./run_gpu exp_name port subg_index use_distance
 cd dqn;
 python pyserver.py $2 &
 cd ..;

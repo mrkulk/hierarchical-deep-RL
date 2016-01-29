@@ -40,6 +40,7 @@ function nql:__init(args)
     -- to keep track of dying position
     self.deathPosition = nil
     self.DEATH_THRESHOLD = 15
+    self.ignoreState = nil
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -184,9 +185,9 @@ function nql:__init(args)
 
     if self.target_q then
         self.target_network = self.network:clone()
-        self.target_network_real = self.network_real:clone()
+        -- self.target_network_real = self.network_real:clone()
         self.w_target, self.dw_target = self.target_network:getParameters()
-        self.w_real_target, self.dw_real_target = self.target_network_real:getParameters()
+        -- self.w_real_target, self.dw_real_target = self.target_network_real:getParameters()
     end
 end
 
@@ -384,7 +385,7 @@ end
 function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
         a=self.valid_a, r=self.valid_r[{{},1}], s2=self.valid_s2, term=self.valid_term, subgoals = self.valid_subgoals,
-         subgoals2 = self.valid_subgoals2, network = self.network_real, target_network = self.target_network_real}
+         subgoals2 = self.valid_subgoals2, network = self.network, target_network = self.target_network}
 
     self.v_avg = self.q_max * q2_max:mean()
     self.tderr_avg = delta:clone():abs():mean()
@@ -408,30 +409,36 @@ function nql:get_objects(rawstate)
         msg = skt:recv()
     end
     local object_list = process_pystr(msg)
+    self.objects = object_list
     return object_list --nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
 end
 
 function nql:pick_subgoal(rawstate, oid)
     local objects = self:get_objects(rawstate)
-    local indxs = oid or torch.random(2, #objects) -- first is the agent
+    local indxs = oid or torch.random(3, #objects) -- first is the agent
     while objects[indxs]:sum() == 0 do -- object absent
-        indxs = torch.random(2, #objects) -- first is the agent
+        indxs = torch.random(3, #objects) -- first is the agent
     end
     
     -- concatenate subgoal with objects (input into network)
     local subg = objects[indxs]
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    for i = 1,#objects do
-        ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
-    end
+    -- local ftrvec = torch.zeros(#objects*self.subgoal_dims)
+    -- for i = 1,#objects do
+    --     ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
+    -- end
 
     -- add stats
-    self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
-    self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
+    -- self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
+    -- self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
+    self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
+    self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
 
     -- zeroing out discrete objects
     -- ftrvec:zero()
-  
+    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
+    ftrvec[indxs] = 1
+    ftrvec[#ftrvec] = indxs
+
     return torch.cat(subg, ftrvec)
 end
 
@@ -445,8 +452,10 @@ function nql:isGoalReached(subgoal, objects)
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
         local subg = subgoal[{{1, self.subgoal_dims}}]
-        self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
-        self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
+        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
+        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
+        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] or 0
+        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] + 1
         return true
     else
         return false
@@ -483,6 +492,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     if terminal then
         reward = -200
+        -- print("died")
     end
 
     local state = self:preprocess(rawstate):float()
@@ -518,9 +528,22 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- local currentFullState = self.transitions:get_recent()
 
     --Store transition s, a, r, s'
+    -- print("self.lastSubgoal", self.lastSubgoal)
     if self.lastState and not testing and self.lastSubgoal then
-        self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
+        -- print("INNNNNNN")
+
+        if self.ignoreState then
+            self.ignoreState = nil
+            -- print("reward would have been", intrinsic_reward)
+        else
+            if self.lastTerminal then
+                        -- print("died3")
+                    end
+            -- print("Intrinsic Reward:", intrinsic_reward)
+
+            self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
                             self.lastTerminal, self.lastSubgoal, priority)
+        end
         -- print("STORING PREV TRANSITION", self.lastState:sum(), self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
                             -- self.lastTerminal, self.lastSubgoal:sum(), priority)
     end
@@ -548,7 +571,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
             self:qLearnMinibatch(self.network, self.target_network, self.dw, self.w, self.g, self.g2, self.tmp, self.deltas, false)
-            self:qLearnMinibatch(self.network_real,  self.target_network_real, self.dw_real, self.w_real, self.g_real, self.g2_real, self.tmp_real, self.deltas_real, true) 
+
+            -- TODO: learning for Real network
+            -- self:qLearnMinibatch(self.network_real,  self.target_network_real, self.dw_real, self.w_real, self.g_real, self.g2_real, self.tmp_real, self.deltas_real, true) 
         end
     end
 
@@ -559,9 +584,14 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     self.lastState = state:clone()
     self.lastAction = actionIndex
     self.lastTerminal = terminal
+    if self.lastTerminal then
+                -- print("died4")
+    end
+
     if not terminal then
         -- print("Getting subgoal")
         self.lastSubgoal = subgoal
+        -- print("lastsubgoal", self.lastSubgoal)
         --check if the game is still in the stages right after the agent dies
         if self.deathPosition then
             currentPosition = objects[1][{{1,2}}]
@@ -572,13 +602,12 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
             else
                 -- print("Removing death position", self.deathPosition)
                 self.deathPosition = nil
+                self.ignoreState = 1
             end
-
         end
-
     else
         -- print("LAST SUBGOAL is now NIL")
-        self.lastSubgoal = nil
+        -- self.lastSubgoal = nil
     end
 
     self.lastobjects = objects
@@ -592,7 +621,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     else --smooth average
         local alpha = 0.999
         self.w_target:mul(0.999):add(self.w * (1-alpha))
-        self.w_real_target:mul(0.999):add(self.w_real * (1-alpha))
+        -- self.w_real_target:mul(0.999):add(self.w_real * (1-alpha))
     end
 
     if not terminal then
@@ -672,23 +701,25 @@ function nql:createNetwork()
 end
 
 
-function nql:report()
+function nql:report(filename)
     print("Subgoal Network\n---------------------")
     print(get_weight_norms(self.network))
     print(get_grad_norms(self.network))
-    print(" Real Network\n---------------------")
-    print(get_weight_norms(self.network_real))
-    print(get_grad_norms(self.network_real))
+    -- print(" Real Network\n---------------------")
+    -- print(get_weight_norms(self.network_real))
+    -- print(get_grad_norms(self.network_real))
     
 
     -- print stats on subgoal success rates
     for subg, val in pairs(self.subgoal_total) do
         if self.subgoal_success[subg] then 
-            print("Subgoal " , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
+            print("Subgoal ID (8-key, 6/7-bottom ladders):" , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
         else
-            print("Subgoal " , subg ,  ' : ')
+            print("Subgoal ID (8-key, 6/7-bottom ladders):" , subg ,  ' : ')
         end
     end
+
+    torch.save(filename , {self.subgoal_success, self.subgoal_total})
     self.subgoal_success = {}
     self.subgoal_total = {}
 end

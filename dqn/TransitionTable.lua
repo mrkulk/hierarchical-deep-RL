@@ -306,6 +306,7 @@ function trans:add(s, a, r, term, subgoal)
     self.r[self.insertIndex] = r
     self.subgoal[self.insertIndex] = subgoal
     if term then
+        -- print('IN')
         self.t[self.insertIndex] = 1
     else
         self.t[self.insertIndex] = 0

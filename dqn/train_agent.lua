@@ -48,7 +48,7 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', false, 'option to display game')
+cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
@@ -133,6 +133,13 @@ while step < opt.steps do
         win = image.display({image=screen, win=win})
     end
 
+    -- for i=1,#agent.objects do
+    --     if agent.objects[i][1] > 0 and agent.objects[i][2] > 0 then
+    --         screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
+    --     end
+    --     win = image.display({image=screen, win=win})
+    -- end
+
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
     
     if opt.stepthrough then
@@ -176,7 +183,9 @@ while step < opt.steps do
         end
 
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
-        screen, reward, terminal = game_env:step(game_actions[1], true) -- noop
+        if not terminal then
+            screen, reward, terminal = game_env:step(game_actions[1], true) -- noop
+        end
         episode_step_counter = episode_step_counter + 1
         -- screen, reward, terminal = game_env:step(game_actions[1], true)
         prev_Q = qfunc 
@@ -226,7 +235,7 @@ while step < opt.steps do
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
                 ' & agent.numSteps: ' .. agent.numSteps)
         print("Steps: ", step)
-        agent:report()
+        agent:report(paths.concat(opt.exp_folder , 'subgoal_statistics_' .. step .. '.t7'))
         collectgarbage()
     end
 
@@ -281,8 +290,10 @@ while step < opt.steps do
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
-            screen, reward, terminal = game_env:step(game_actions[1])
-
+            if not terminal then
+                screen, reward, terminal = game_env:step(game_actions[1]) -- noop
+            end
+           
             -- display screen
             if opt.display_game and not opt.subgoal_screen then
                 screen_cropped = screen:clone()
