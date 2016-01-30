@@ -130,7 +130,7 @@ while step < opt.steps do
 
     if opt.subgoal_screen then
         screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        -- win = image.display({image=screen, win=win})
+        if opt.display_game then win = image.display({image=screen, win=win}) end
     end
 
     -- for i=1,#agent.objects do
@@ -279,7 +279,7 @@ while step < opt.steps do
 
             if opt.subgoal_screen then
                 screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                win = image.display({image=screen, win=win})
+                if opt.display_game  then win = image.display({image=screen, win=win}) end
             end
 
             local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)

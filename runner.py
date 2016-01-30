@@ -8,27 +8,27 @@ if not os.path.exists("slurm_scripts"):
 
 jobs = [
     {
-        'eps_endt': 500000,
+        'eps_endt': 200000,
         'lr': 0.00025,
         'port': 9000,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 1000000,
-        'lr': 0.00025,
+        'eps_endt': 200000,
+        'lr': 0.00050,
         'port': 9001,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 500000,
+        'eps_endt': 200000,
         'lr': 0.001,
         'port': 9002,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 500000,
+        'eps_endt': 200000,
         'lr': 0.00025,
-        'port': 9000,
+        'port': 9003,
         'use_distance': 'false'
     },
 ]
