@@ -6,6 +6,9 @@ See LICENSE file for full terms of limited license.
 require 'xlua'
 require 'optim'
 
+require 'signal'
+signal.signal("SIGPIPE", function() print("raised") end)
+
 local cmd = torch.CmdLine()
 cmd:text()
 cmd:text('Train Agent in Environment:')
