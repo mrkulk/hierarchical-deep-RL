@@ -350,15 +350,15 @@ while step < opt.steps do
         end
         print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
 
-        test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
-        test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
-        test_avg_Q:add{['% Average Q'] = agent.v_avg}
+        -- test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
+        -- test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
+        -- test_avg_Q:add{['% Average Q'] = agent.v_avg}
      
 
-        test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
-        test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
+        -- test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
+        -- test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
 
-        test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
+        -- test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
       
         reward_history[ind] = total_reward
         reward_counts[ind] = nrewards
