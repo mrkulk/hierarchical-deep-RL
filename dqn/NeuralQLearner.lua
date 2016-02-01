@@ -447,7 +447,7 @@ function nql:isGoalReached(subgoal, objects)
 
     -- IMP: remember that subgoal includes both subgoal and all objects
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 10 then --just a small threshold to indicate when agent meets subgoal (euc dist)
+    if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
