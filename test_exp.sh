@@ -4,4 +4,4 @@ fi
 cd dqn;
 python pyserver.py $2 &
 cd ..;
-./run_gpu montezuma_revenge $1 $2;
+./test_gpu montezuma_revenge $1 $2;

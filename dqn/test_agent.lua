@@ -26,7 +26,7 @@ cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
-cmd:option('-seed', torch.random(0,10000), 'fixed input seed for repeatable experiments')
+cmd:option('-seed', 9000, 'fixed input seed for repeatable experiments')
 
 cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
@@ -37,8 +37,8 @@ cmd:option('-csv_file', '', 'CSV path to write session data')
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
 cmd:option('-port', 5550, 'Port for zmq connection')
-cmd:option('-stepthrough', true, 'Stepthrough')
-cmd:option('-human_input', true, 'Human input action')
+cmd:option('-stepthrough', false, 'Stepthrough')
+cmd:option('-human_input', false, 'Human input action')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
 
 
@@ -87,7 +87,7 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 6)
+subgoal = agent:pick_subgoal(screen, 7)
 --print('Subgoal:', subgoal)
 
 
@@ -107,7 +107,7 @@ while true or not terminal do
     
     -- choose the best action
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc 
-    = agent:perceive(subgoal, reward, screen, terminal, true, 0.0)
+    = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
 
     local tmp2
 
