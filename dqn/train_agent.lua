@@ -51,13 +51,15 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', false, 'option to display game')
+cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
 
 cmd:option('-max_steps_episode', 5000, 'Max steps per episode')
 
+cmd:option('-meta_agent', true, 'hierarchical training')
+cmd:option('-max_objects', 3, 'max number of objects in scene that are parsed and used as subgoals')
 
 
 
@@ -67,12 +69,11 @@ cmd:text()
 local opt = cmd:parse(arg)
 ZMQ_PORT = opt.port
 SUBGOAL_SCREEN = opt.subgoal_screen
-
+META_AGENT = opt.meta_agent
 
 if not dqn then
     require "initenv"
 end
-
 
 print(opt.env_params)
 print(opt.seed)
@@ -111,12 +112,15 @@ local win = nil
 
 local subgoal
 
-if opt.subgoal_index < opt.max_subgoal_index then 
-    subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+if META_AGENT then
+    subgoal = agent:pick_subgoal(screen, 0, terminal, false)
 else
-    subgoal = agent:pick_subgoal(screen)
+    if opt.subgoal_index < opt.max_subgoal_index then 
+        subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+    else
+        subgoal = agent:pick_subgoal(screen)
+    end
 end
-
 
 local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
                     'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
@@ -125,6 +129,7 @@ local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right',
 death_counter = 0 --to handle a bug in MZ atari
 
 episode_step_counter = 0
+metareward = 0
 
 while step < opt.steps do
     xlua.progress(step, opt.steps)
@@ -144,7 +149,8 @@ while step < opt.steps do
     -- end
 
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
-    
+    metareward = metareward + reward_ext
+
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
         print("Reward Tot", reward_tot)
@@ -181,7 +187,6 @@ while step < opt.steps do
             if opt.subgoal_screen then
                 screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
             end
-
             isGoalReached = false
         end
 
@@ -195,6 +200,12 @@ while step < opt.steps do
     else
         death_counter = death_counter + 1
         -- print("TERMINAL ENCOUNTERED")
+        if META_AGENT then
+            subgoal = agent:pick_subgoal(screen, metareward, true, false)
+            metareward = 0
+            assert(subgoal == nil)
+        end
+
         if opt.random_starts > 0 then
             -- print("RANDOM GAME STARTING")
             screen, reward, terminal = game_env:nextRandomGame()
@@ -214,10 +225,15 @@ while step < opt.steps do
     end
   
     if isGoalReached then
-        if opt.subgoal_index  < opt.max_subgoal_index then
-            subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+        if META_AGENT then
+            subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
+            metareward = 0
         else
-            subgoal = agent:pick_subgoal(screen)
+            if opt.subgoal_index  < opt.max_subgoal_index then
+                subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+            else
+                subgoal = agent:pick_subgoal(screen)
+            end
         end
 
         isGoalReached = false
@@ -258,7 +274,12 @@ while step < opt.steps do
         local cum_reward_tot = 0
 
         screen, reward, terminal = game_env:newGame()
-        subgoal = agent:pick_subgoal(screen)
+        if META_AGENT then
+            subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
+        else
+            subgoal = agent:pick_subgoal(screen)
+        end
+
         if opt.subgoal_screen then
             screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         end
@@ -286,7 +307,7 @@ while step < opt.steps do
             end
 
             local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
-
+            metareward = metareward + reward_ext
 
             cum_reward_tot = cum_reward_tot + reward_tot
             cum_reward_ext = cum_reward_ext + reward_ext
@@ -317,6 +338,12 @@ while step < opt.steps do
                 total_reward = total_reward + episode_reward
                 episode_reward = 0
                 nepisodes = nepisodes + 1
+
+                if META_AGENT then
+                    subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
+                    assert(subgoal == nil)
+                end
+
                 screen, reward, terminal = game_env:newGame()
                 isGoalReached = true --new game so reset subgoal
                 death_counter_eval = death_counter_eval + 1
@@ -326,8 +353,13 @@ while step < opt.steps do
                     death_counter_eval = 0
                 end
             end
+
             if isGoalReached then
-                subgoal = agent:pick_subgoal(screen)
+                if META_AGENT then
+                    subgoal = agent:pick_subgoal(screen, nil, false, true, 0.1)
+                else
+                    subgoal = agent:pick_subgoal(screen)
+                end
                 isGoalReached = false
             end
 
@@ -335,7 +367,7 @@ while step < opt.steps do
 
         eval_time = sys.clock() - eval_time
         start_time = start_time + eval_time
-        agent:compute_validation_statistics()
+        -- agent:compute_validation_statistics()
         local ind = #reward_history+1
         total_reward = total_reward/math.max(1, nepisodes)
 
@@ -343,7 +375,7 @@ while step < opt.steps do
         cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
 
         if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            agent.best_network_real = agent.network_real:clone()
+            agent.best_network_meta = agent.network_meta:clone()
         end
 
         if agent.v_avg then
@@ -387,10 +419,10 @@ while step < opt.steps do
             agent.valid_s2, agent.valid_term
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = nil, nil, nil, nil, nil, nil, nil
-        local w_real, dw_real, g_real, g2_real, delta, delta2, deltas, deltas_real, tmp_real = agent.w_real, agent.dw_real,
-            agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas, agent.deltas_real, agent.tmp_real
-        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas, 
-            agent.deltas_real, agent.tmp_real = nil, nil, nil, nil, nil, nil, nil, nil, nil
+        local w_meta, dw_meta, g_meta, g2_meta, delta, delta2, deltas, deltas_meta, tmp_meta = agent.w_meta, agent.dw_meta,
+            agent.g_meta, agent.g2_meta, agent.delta, agent.delta2, agent.deltas, agent.deltas_meta, agent.tmp_meta
+        agent.w_meta, agent.dw_meta, agent.g_meta, agent.g2_meta, agent.delta, agent.delta2, agent.deltas, 
+            agent.deltas_meta, agent.tmp_meta = nil, nil, nil, nil, nil, nil, nil, nil, nil
 
         local filename = opt.name
         if opt.save_versions > 0 then
@@ -400,8 +432,8 @@ while step < opt.steps do
         torch.save(filename .. ".t7", {agent = agent,
                                 model = agent.network,
                                 best_model = agent.best_network,
-                                model_real = agent.network_real, 
-                                best_model_real = agent.best_network_real,
+                                model_meta = agent.network_meta, 
+                                best_model_meta = agent.best_network_meta,
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
                                 episode_counts = episode_counts,
@@ -411,13 +443,13 @@ while step < opt.steps do
                                 qmax_history = qmax_history,
                                 arguments=opt})
         if opt.saveNetworkParams then
-            local nets = {network=w_real:clone():float()}
+            local nets = {network=w_meta:clone():float()}
             torch.save(filename..'.params.t7', nets, 'ascii')
         end
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
             agent.valid_term = s, a, r, s2, term
-        agent.w_real, agent.dw_real, agent.g_real, agent.g2_real, agent.delta, agent.delta2, agent.deltas,
-            agent.deltas_real, agent.tmp_real = w_real, dw_real, g_real, g2_real, delta, delta2, deltas, deltas_real, tmp_real
+        agent.w_meta, agent.dw_meta, agent.g_meta, agent.g2_meta, agent.delta, agent.delta2, agent.deltas,
+            agent.deltas_meta, agent.tmp_meta = w_meta, dw_meta, g_meta, g2_meta, delta, delta2, deltas, deltas_meta, tmp_meta
         print('Saved:', filename .. '.t7')
         io.flush()
         collectgarbage()

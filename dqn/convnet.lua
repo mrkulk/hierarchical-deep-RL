@@ -7,7 +7,6 @@ See LICENSE file for full terms of limited license.
 require "initenv"
 
 function create_network(args)
-
     local net = nn.Sequential()
     net:add(nn.Reshape(unpack(args.input_dims)))
 

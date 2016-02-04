@@ -11,7 +11,13 @@ require 'nngraph'
 require 'nnutils'
 require 'image'
 require 'Scale'
-require 'NeuralQLearner'
+
+if META_AGENT  then
+    require 'MetaNeuralQLearner'
+else
+    require 'NeuralQLearner'
+end
+
 require 'TransitionTable'
 require 'Rectifier'
 
@@ -94,6 +100,20 @@ function torchSetup(_opt)
     return opt
 end
 
+function table_clone (t) -- deep-copy a table
+    if type(t) ~= "table" then return t end
+    local meta = getmetatable(t)
+    local target = {}
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            target[k] = table_clone(v)
+        else
+            target[k] = v
+        end
+    end
+    setmetatable(target, meta)
+    return target
+end
 
 function setup(_opt)
     assert(_opt)
@@ -124,6 +144,7 @@ function setup(_opt)
     _opt.agent_params.best      = _opt.best
     _opt.agent_params.subgoal_dims = _opt.subgoal_dims
     _opt.agent_params.subgoal_nhid = _opt.subgoal_nhid
+    _opt.agent_params.max_objects = _opt.max_objects
 
     if _opt.network ~= '' then
         _opt.agent_params.network = _opt.network

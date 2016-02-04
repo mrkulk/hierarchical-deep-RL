@@ -13,9 +13,8 @@ function trans:__init(args)
     self.stateDim = args.stateDim
     self.numActions = args.numActions
     self.histLen = args.histLen
-    self.maxSize = args.maxSize or 1024^2
-    self.bufferSize = args.bufferSize or 1024
-
+    self.maxSize = args.maxSize or 1024^2 --1024^2
+    self.bufferSize = args.bufferSize or 1024-- 1024
     self.histType = args.histType or "linear"
     self.histSpacing = args.histSpacing or 1
     self.zeroFrames = args.zeroFrames or 1
