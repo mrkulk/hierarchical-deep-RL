@@ -1,6 +1,8 @@
 -- analyze subgoal success
 
-expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
+--expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
+ expname = 'basic1'
+--expname = 'basic2'
 dir = 'logs/' .. expname
 
 finalstats = {}
@@ -31,3 +33,4 @@ end
 
 print('Final subgoal stats {key=subgoal-id, value=% hitrate:')
 print(finalstats)
+print(finalcount)
