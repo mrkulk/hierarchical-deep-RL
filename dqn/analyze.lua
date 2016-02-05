@@ -1,7 +1,8 @@
 -- analyze subgoal success
 
 --expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
- expname = 'basic1'
+expname = 'meta1'
+-- expname = 'meta2_allsubgoals'
 --expname = 'basic2'
 dir = 'logs/' .. expname
 
@@ -13,9 +14,10 @@ for i=3,8 do
 end
 
 for f in paths.files(dir) do
-	if string.match(f, "subgoal") then
+	if string.match(f, "subgoal_statistics") then
+       -- print(f)
 		local stats = torch.load(dir .. '/' .. f)
-		-- print('--------')
+		 --print('--------')
 		-- print(stats[1])
 		-- print(stats[2])
 		for sid, hitrate in pairs(stats[1]) do
