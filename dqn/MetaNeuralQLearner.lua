@@ -499,6 +499,7 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local alpha = 0.999
     self.w_meta_target:mul(0.999):add(self.w_meta * (1-alpha))
 
+    -- TODO: depends on number of subgoals
     if  self.meta_args.n_actions == 6 then
         indxs = actionIndex + 2 --offset of two for obj id
     else
@@ -519,12 +520,8 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     ftrvec[indxs] = 1
     ftrvec[#ftrvec] = indxs
 
-    
-    if not terminal then
-        return torch.cat(subg, ftrvec)
-    else
-        return nil
-    end
+    -- Return subgoal    
+    return torch.cat(subg, ftrvec)
 end
 
 function nql:isGoalReached(subgoal, objects)

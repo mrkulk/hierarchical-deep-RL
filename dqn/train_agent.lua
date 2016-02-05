@@ -136,9 +136,11 @@ while step < opt.steps do
 
     step = step + 1
 
+    subgoal_screen = screen:clone() -- only do overlay on subgoal screen
+
     if opt.subgoal_screen then
-        screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        if opt.display_game then win = image.display({image=screen, win=win}) end
+        subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
     end
 
     -- for i=1,#agent.objects do
@@ -148,7 +150,7 @@ while step < opt.steps do
     --     win = image.display({image=screen, win=win})
     -- end
 
-    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
+    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
     metareward = metareward + reward_ext
 
     if opt.stepthrough then
@@ -201,9 +203,9 @@ while step < opt.steps do
         death_counter = death_counter + 1
         -- print("TERMINAL ENCOUNTERED")
         if META_AGENT then
+            -- Note: this screen is the death screen (terminal)
             subgoal = agent:pick_subgoal(screen, metareward, true, false)
             metareward = 0
-            assert(subgoal == nil)
         end
 
         if opt.random_starts > 0 then
@@ -280,10 +282,6 @@ while step < opt.steps do
             subgoal = agent:pick_subgoal(screen)
         end
 
-        if opt.subgoal_screen then
-            screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        end
-
 
         test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
         test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
@@ -300,13 +298,13 @@ while step < opt.steps do
         for estep=1,opt.eval_steps do
             xlua.progress(estep, opt.eval_steps)
 
-
+            subgoal_screen = screen:clone()
             if opt.subgoal_screen then
-                screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                if opt.display_game  then win = image.display({image=screen, win=win}) end
+                subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+                if opt.display_game  then win = image.display({image=subgoal_screen, win=win}) end
             end
 
-            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, subgoal_screen, terminal, true, 0.1)
             metareward = metareward + reward_ext
 
             cum_reward_tot = cum_reward_tot + reward_tot
@@ -318,13 +316,13 @@ while step < opt.steps do
                 screen, reward, terminal = game_env:step(game_actions[1]) -- noop
             end
            
-            -- display screen
-            if opt.display_game and not opt.subgoal_screen then
-                screen_cropped = screen:clone()
-                screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-                screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                win = image.display({image=screen_cropped, win=win})
-            end
+            -- display screen (REDUNDANT?  - already being displayed above)
+            -- if opt.display_game and not opt.subgoal_screen then
+            --     screen_cropped = screen:clone()
+            --     screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+            --     screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+            --     win = image.display({image=screen_cropped, win=win})
+            -- end
 
             if estep%1000 == 0 then collectgarbage() end
 
@@ -341,7 +339,6 @@ while step < opt.steps do
 
                 if META_AGENT then
                     subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
-                    assert(subgoal == nil)
                 end
 
                 screen, reward, terminal = game_env:newGame()
@@ -411,7 +408,7 @@ while step < opt.steps do
             'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
             step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
             training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
-            nepisodes, nrewards))
+            nepisodes, nrewards))        
     end
 
     if step % opt.save_freq == 0 or step == opt.steps then
