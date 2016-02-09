@@ -476,7 +476,9 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     if self.metalastState and not testing then
         self.meta_transitions:add(self.metalastState, self.metalastAction, torch.Tensor({metareward, metareward + 0}),
                         self.metalastTerminal, ftrvec, priority)
-
+        -- if metareward ~=0 then
+        --     print("Metareward", metareward)
+        -- end
     end
 
 

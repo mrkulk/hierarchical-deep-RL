@@ -151,7 +151,7 @@ while step < opt.steps do
     -- end
 
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
-    metareward = metareward + reward_ext
+    metareward = metareward + reward_ext + 0.1 -- to offset for 0.1 penalty per step
 
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
