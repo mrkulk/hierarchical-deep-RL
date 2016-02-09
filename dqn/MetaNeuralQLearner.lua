@@ -110,16 +110,26 @@ function nql:__init(args)
         else
             self.network = exp.model
         end
+
+        if exp.model_meta then
+            self.network_meta = exp.model_meta
+        end
     else
         print('Creating Agent Network from ' .. self.network)
         self.network = err
-        self.network = self:network()
+        self.network = self:network()    
     end
 
     if self.gpu and self.gpu >= 0 then
         self.network:cuda()
+        if self.network_meta then
+            self.network_meta:cuda()
+        end
     else
         self.network:float()
+        if self.network_meta then
+            self.network_meta:float()
+        end
     end
 
     -- Load preprocessing network.
@@ -183,8 +193,7 @@ function nql:__init(args)
     self.q_max = 1
     self.r_max = 1
 
-
-    require 'convnet_atari3'
+    -- TODO: also save this into file and read
     local meta_args = table_clone(args)
     meta_args.n_units        = {32, 64, 64}
     meta_args.filter_size    = {8, 4, 3}
@@ -194,8 +203,14 @@ function nql:__init(args)
     meta_args.n_actions = args.max_objects
     meta_args.input_dims = self.input_dims
     self.meta_args = meta_args
-    self.network_meta = create_network(meta_args)
 
+    -- create a meta network from scratch if not read in from saved file
+    if not self.network_meta then
+        print("Creating new Meta Network.....")
+        require 'convnet_atari3'
+       
+        self.network_meta = create_network(meta_args)
+    end
 
     self.w, self.dw = self.network:getParameters()
     self.dw:zero()
@@ -475,6 +490,11 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
         actionIndex, qfunc = self:eGreedy('meta', self.network_meta, curState, testing_ep, subgoal)
     end
 
+    -- UNCOMMENT if you want to choose the subgoals
+    -- print(qfunc)
+    -- print("Action chosen:", actionIndex)
+    -- actionIndex = io.read("*number")
+
     self.meta_transitions:add_recent_action(actionIndex) 
 
     --Do some Q-learning updates
@@ -529,7 +549,7 @@ function nql:isGoalReached(subgoal, objects)
 
     -- IMP: remember that subgoal includes both subgoal and all objects
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
+    if dist <= 9.5 then --just a small threshold to indicate when agent meets subgoal (euc dist)
         print('subgoal reached!')
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)

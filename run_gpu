@@ -22,8 +22,8 @@ discount=0.99
 discount_internal=0.99
 dynamic_discount=0.99  #starting value for dynamic discounting scheme
 seed=$3 #using port as seed
-learn_start=50000 #50000 #100
-meta_learn_start=2000 #50000 #100
+learn_start=5000 #50000 #100
+meta_learn_start=1200 #50000 #100
 
 pool_frms_type="\"max\""
 pool_frms_size=2
@@ -53,4 +53,4 @@ args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -
 echo $args
 
 cd dqn
-th train_agent.lua $args
+qlua train_agent.lua $args

@@ -92,7 +92,7 @@ local win = image.display({image=screen})
 print("Started playing...")
 
 if META_AGENT then
-    subgoal = agent:pick_subgoal(screen, 0, terminal, false)
+    subgoal = agent:pick_subgoal(screen, 0, terminal, true, 0.1)
 else
     subgoal = agent:pick_subgoal(screen, 7)
 end
@@ -154,7 +154,7 @@ while true or not terminal do
 
     if isGoalReached then
         if META_AGENT then
-            subgoal = agent:pick_subgoal(screen, 0, terminal, false)
+            subgoal = agent:pick_subgoal(screen, 0, terminal, true, 0.1)
         else
             subgoal = agent:pick_subgoal(screen)
         end
