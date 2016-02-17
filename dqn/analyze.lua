@@ -1,8 +1,8 @@
 -- analyze subgoal success
 
 --expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
-expname = 'meta1'
--- expname = 'meta2_allsubgoals'
+expname = 'meta3'
+--expname = 'meta4_allsubgoals'
 --expname = 'basic2'
 dir = 'logs/' .. expname
 

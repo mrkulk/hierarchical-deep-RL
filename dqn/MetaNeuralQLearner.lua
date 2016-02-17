@@ -35,6 +35,9 @@ function nql:__init(args)
     self.global_subgoal_success = {}
     self.global_subgoal_total = {}
 
+    self.subgoal_seq = {}
+    self.global_subgoal_seq = {}
+
 
     -- to keep track of dying position
     self.deathPosition = nil
@@ -173,7 +176,7 @@ function nql:__init(args)
         histLen = self.hist_len, gpu = self.gpu,
         maxSize = self.replay_memory, histType = self.histType,
         histSpacing = self.histSpacing, nonTermProb = self.nonTermProb,
-        bufferSize = self.bufferSize,
+        bufferSize = 36,
         subgoal_dims = args.subgoal_dims
     }
     self.meta_transitions = dqn.TransitionTable(meta_transition_args)
@@ -210,6 +213,29 @@ function nql:__init(args)
         require 'convnet_atari3'
        
         self.network_meta = create_network(meta_args)
+    end
+
+    -- copy the lower level weights from lower network
+    print(self.network.modules)
+
+    for i=1, #self.network.modules-1 do
+       print(self.network.modules[i])
+        if i==1 then
+            for j=1, #self.network.modules[1].modules do
+            if self.network.modules[1].modules[j].bias then
+               self.network_meta.modules[1].modules[j].bias = self.network.modules[1].modules[j].bias:clone()
+            end
+            if self.network.modules[1].modules[j].weights then
+                self.network_meta.modules[1].modules[j].weights = self.network.modules[1].modules[j].weights:clone()
+            end
+            end
+        end
+        if self.network.modules[i].bias then 
+            self.network_meta.modules[i].bias = self.network.modules[i].bias:clone()
+        end
+        if self.network.modules[i].weights then 
+        self.network_meta.modules[i].weights = self.network.modules[i].weights:clone()
+        end
     end
 
     self.w, self.dw = self.network:getParameters()
@@ -467,6 +493,7 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     ftrvec = torch.cat(subg, ftrvec)
 
 
+   
     local state = self:preprocess(rawstate):float()
 
     self.meta_transitions:add_recent_state(state, terminal, ftrvec)  
@@ -541,6 +568,14 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local ftrvec = torch.zeros(#objects*self.subgoal_dims)
     ftrvec[indxs] = 1
     ftrvec[#ftrvec] = indxs
+
+    -- keep track of subgoal sequences
+    if terminal then
+        table.insert(self.global_subgoal_seq, self.subgoal_seq)
+        self.subgoal_seq = {}
+    else
+        table.insert(self.subgoal_seq, indxs)
+    end
 
     -- Return subgoal    
     return torch.cat(subg, ftrvec)
@@ -822,7 +857,8 @@ function nql:report(filename)
         end
     end
 
-    torch.save(filename , {self.subgoal_success, self.subgoal_total})
+    torch.save(filename , {self.subgoal_success, self.subgoal_total, self.global_subgoal_seq})
     self.subgoal_success = {}
     self.subgoal_total = {}
+    self.global_subgoal_seq = {}
 end
