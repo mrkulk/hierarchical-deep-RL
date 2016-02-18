@@ -56,6 +56,7 @@ function nql:__init(args)
     self.lr             = self.lr_start
     self.lr_end         = args.lr_end or self.lr
     self.lr_endt        = args.lr_endt or 1000000
+    self.lr_meta        = args.lr_meta
     self.wc             = args.wc or 0  -- L2 weight cost.
     self.minibatch_size = args.minibatch_size or 1
     self.valid_size     = args.valid_size or 32
@@ -367,7 +368,7 @@ function nql:getQUpdate(args, external_r)
 end
 
 
-function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, tmp, deltas, external_r, nactions)
+function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, tmp, deltas, external_r, nactions, metaFlag)
     -- Perform a minibatch Q-learning update:
     -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
     assert(tran_table:size() > self.minibatch_size)
@@ -401,7 +402,11 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     -- compute linearly annealed learning rate
     local t = math.max(0, self.numSteps - self.learn_start)
-    self.lr = (self.lr_start - self.lr_end) * (self.lr_endt - t)/self.lr_endt +
+    lr_start = self.lr_start
+    if metaFlag then
+        lr_start = self.lr_meta
+    end
+    self.lr = (lr_start - self.lr_end) * (self.lr_endt - t)/self.lr_endt +
                 self.lr_end
     self.lr = math.max(self.lr, self.lr_end)
 

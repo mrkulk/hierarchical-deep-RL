@@ -153,6 +153,11 @@ while step < opt.steps do
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
     metareward = metareward + reward_ext + 0.1 -- to offset for 0.1 penalty per step
 
+    -- remove death pen for metareward
+    if metareward < -100 then
+        metareward = 0
+    end
+
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
         print("Reward Tot", reward_tot)
@@ -307,6 +312,12 @@ while step < opt.steps do
             local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, subgoal_screen, terminal, true, 0.1)
             metareward = metareward + reward_ext
 
+            -- remove death pen for metareward
+            if metareward < -100 then
+                metareward = 0
+            end
+
+    
             cum_reward_tot = cum_reward_tot + reward_tot
             cum_reward_ext = cum_reward_ext + reward_ext
 

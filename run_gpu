@@ -32,6 +32,7 @@ replay_memory=1000000
 eps_end=0.1 #0.1
 eps_endt=${6:-500000} #500000 #replay_memory
 lr=${7:-0.00025} #0.00025
+lr_meta=0.0025
 agent_type=$2
 preproc_net="\"net_downsample_2x_full_y\""
 agent_name=$agent_type"_"$1
