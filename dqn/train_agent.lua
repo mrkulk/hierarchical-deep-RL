@@ -56,7 +56,7 @@ cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
 
-cmd:option('-max_steps_episode', 1000, 'Max steps per episode')
+cmd:option('-max_steps_episode', 5000, 'Max steps per episode')
 
 cmd:option('-meta_agent', true, 'hierarchical training')
 cmd:option('-max_objects', 3, 'max number of objects in scene that are parsed and used as subgoals')
@@ -210,6 +210,9 @@ while step < opt.steps do
         if META_AGENT then
             -- Note: this screen is the death screen (terminal)
             subgoal = agent:pick_subgoal(screen, metareward, true, false)
+            if metareward > 0 then
+                print('METAR:', metareward)
+            end
             metareward = 0
         end
 
