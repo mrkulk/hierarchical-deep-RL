@@ -1,8 +1,8 @@
 -- analyze subgoal success
 
 --expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
---expname = 'meta5'
-expname = 'meta7_nodeathpen'
+expname = 'meta8'
+--expname = 'meta7_nodeathpen'
 --expname = 'basic2'
 dir = 'logs/' .. expname
 

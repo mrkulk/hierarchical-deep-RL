@@ -152,8 +152,7 @@ while step < opt.steps do
 
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
     metareward = metareward + reward_ext + 0.1 -- to offset for 0.1 penalty per step
-
-    -- remove death pen for metareward
+        -- remove death pen for metareward
     if metareward < -100 then
         metareward = 0
     end
@@ -235,8 +234,14 @@ while step < opt.steps do
     end
   
     if isGoalReached then
+
         if META_AGENT then
             subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
+    if metareward > 0 then 
+            print("METAREWARD: ", metareward)
+    end
+
+
             metareward = 0
         else
             if opt.subgoal_index  < opt.max_subgoal_index then
@@ -319,6 +324,9 @@ while step < opt.steps do
             if metareward < -100 then
                 metareward = 0
             end
+
+            --if metareward > 0 then
+            --end
 
     
             cum_reward_tot = cum_reward_tot + reward_tot
