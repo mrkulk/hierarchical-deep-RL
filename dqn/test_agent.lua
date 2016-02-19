@@ -40,6 +40,8 @@ cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-human_input', false, 'Human input action')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
+cmd:option('-meta_agent', true, 'hierarchical training')
+cmd:option('-max_objects', 3, 'max number of objects in scene that are parsed and used as subgoals')
 
 
 
@@ -47,6 +49,8 @@ cmd:text()
 
 local opt = cmd:parse(arg)
 ZMQ_PORT = opt.port
+META_AGENT = opt.meta_agent
+SUBGOAL_SCREEN = opt.subgoal_screen
 
 
 if not dqn then
@@ -87,7 +91,11 @@ local win = image.display({image=screen})
 
 print("Started playing...")
 
-subgoal = agent:pick_subgoal(screen, 7)
+if META_AGENT then
+    subgoal = agent:pick_subgoal(screen, 0, terminal, true, 0.1)
+else
+    subgoal = agent:pick_subgoal(screen, 7)
+end
 --print('Subgoal:', subgoal)
 
 
@@ -100,14 +108,15 @@ while true or not terminal do
     -- if action was chosen randomly, Q-value is 0
     agent.bestq = 0
 
+    subgoal_screen = screen:clone() 
     if opt.subgoal_screen then
-        screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        win = image.display({image=screen, win=win})
+        subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        win = image.display({image=subgoal_screen, win=win})
     end
     
     -- choose the best action
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc 
-    = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+    = agent:perceive(subgoal, reward, subgoal_screen, terminal, true, 0.1)
 
     local tmp2
 
@@ -144,16 +153,11 @@ while true or not terminal do
 
 
     if isGoalReached then
-        subgoal = agent:pick_subgoal(screen)
-    end
-
-    if not opt.subgoal_screen then
-        screen_cropped = screen:clone()
-        screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-        screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        
-        -- display screen
-        image.display({image=screen_cropped, win=win})
+        if META_AGENT then
+            subgoal = agent:pick_subgoal(screen, 0, terminal, true, 0.1)
+        else
+            subgoal = agent:pick_subgoal(screen)
+        end
     end
 
     -- create gd image from tensor

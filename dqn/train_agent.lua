@@ -59,7 +59,7 @@ cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
 cmd:option('-max_steps_episode', 5000, 'Max steps per episode')
 
 cmd:option('-meta_agent', true, 'hierarchical training')
-cmd:option('-max_objects', 6, 'max number of objects in scene that are parsed and used as subgoals')
+cmd:option('-max_objects', 3, 'max number of objects in scene that are parsed and used as subgoals')
 
 
 
@@ -151,7 +151,11 @@ while step < opt.steps do
     -- end
 
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
-    metareward = metareward + reward_ext
+    metareward = metareward + reward_ext + 0.1 -- to offset for 0.1 penalty per step
+        -- remove death pen for metareward
+    if metareward < -100 then
+        metareward = 0
+    end
 
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
@@ -205,6 +209,9 @@ while step < opt.steps do
         if META_AGENT then
             -- Note: this screen is the death screen (terminal)
             subgoal = agent:pick_subgoal(screen, metareward, true, false)
+            if metareward > 0 then
+                print('METAR:', metareward)
+            end
             metareward = 0
         end
 
@@ -227,8 +234,14 @@ while step < opt.steps do
     end
   
     if isGoalReached then
+
         if META_AGENT then
             subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
+    if metareward > 0 then 
+            print("METAREWARD: ", metareward)
+    end
+
+
             metareward = 0
         else
             if opt.subgoal_index  < opt.max_subgoal_index then
@@ -307,6 +320,15 @@ while step < opt.steps do
             local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, subgoal_screen, terminal, true, 0.1)
             metareward = metareward + reward_ext
 
+            -- remove death pen for metareward
+            if metareward < -100 then
+                metareward = 0
+            end
+
+            --if metareward > 0 then
+            --end
+
+    
             cum_reward_tot = cum_reward_tot + reward_tot
             cum_reward_ext = cum_reward_ext + reward_ext
 
