@@ -20,8 +20,10 @@ for f in paths.files(dir) do
 		 --print('--------')
 		-- print(stats[1])
 		-- print(stats[2])
-		for sid, hitrate in pairs(stats[1]) do
-			finalstats[sid] = finalstats[sid] + stats[1][sid]
+		for sid, hitrate in pairs(stats[2]) do
+            if stats[1][sid] then
+			    finalstats[sid] = finalstats[sid] + stats[1][sid]
+            end
 			finalcount[sid] = finalcount[sid] + stats[2][sid]
 		end
 	end
