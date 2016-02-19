@@ -521,7 +521,7 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local actionIndex = 1
     local qfunc
     if not terminal then
-        actionIndex, qfunc = self:eGreedy('meta', self.network_meta, curState, testing_ep, subgoal)
+        actionIndex, qfunc = self:eGreedy('meta', self.network_meta, curState, testing_ep, subgoal, self.metalastAction)
     end
 
     -- UNCOMMENT if you want to choose the subgoals
@@ -592,7 +592,7 @@ function nql:isGoalReached(subgoal, objects)
     -- IMP: remember that subgoal includes both subgoal and all objects
     local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
     if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
-        print('subgoal reached!')
+        print('subgoal reached [OID]: ', subgoal[#subgoal])
         -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
         -- print(subgoal, indexTensor)
         local subg = subgoal[{{1, self.subgoal_dims}}]
@@ -773,7 +773,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 end
 
 
-function nql:eGreedy(mode, network, state, testing_ep, subgoal)
+function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
@@ -792,7 +792,15 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal)
 
     -- Epsilon greedy
     if torch.uniform() < self.ep then
-        return torch.random(1, n_actions)
+        if mode == 'meta' then
+            local chosen_act = torch.random(1,n_actions)
+            while chosen_act == lastsubgoal do
+                chosen_act = torch.random(1,n_actions)
+            end
+            return chosen_act
+        else
+            return torch.random(1, n_actions)
+        end
     else
         return self:greedy(network, n_actions, state, subgoal)
     end

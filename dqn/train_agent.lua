@@ -236,12 +236,11 @@ while step < opt.steps do
     if isGoalReached then
 
         if META_AGENT then
+            if metareward > 0 then 
+                print("METAREWARD: ", metareward, "| subgoal:", subgoal[-1])
+                -- io.read()
+            end
             subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
-    if metareward > 0 then 
-            print("METAREWARD: ", metareward)
-    end
-
-
             metareward = 0
         else
             if opt.subgoal_index  < opt.max_subgoal_index then
