@@ -90,7 +90,7 @@ function nql:__init(args)
     self.histType       = args.histType or "linear"  -- history type to use
     self.histSpacing    = args.histSpacing or 1
     self.nonTermProb    = args.nonTermProb or 1
-    self.bufferSize     = args.bufferSize --or 512
+    self.bufferSize     = args.bufferSize or 512
 
     self.transition_params = args.transition_params or {}
 
@@ -177,7 +177,7 @@ function nql:__init(args)
         histLen = self.hist_len, gpu = self.gpu,
         maxSize = self.replay_memory, histType = self.histType,
         histSpacing = self.histSpacing, nonTermProb = self.nonTermProb,
-        bufferSize = 36,
+        bufferSize = 512,
         subgoal_dims = args.subgoal_dims
     }
     self.meta_transitions = dqn.TransitionTable(meta_transition_args)
@@ -218,7 +218,6 @@ function nql:__init(args)
 
     -- copy the lower level weights from lower network
     print(self.network.modules)
-
     for i=1, #self.network.modules-1 do
        print(self.network.modules[i])
         if i==1 then
@@ -401,7 +400,13 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
     dw:add(-self.wc, w)
 
     -- compute linearly annealed learning rate
-    local t = math.max(0, self.numSteps - self.learn_start)
+    if metaFlag then
+        learn_start = self.meta_learn_start
+    else
+        learn_start = self.learn_start
+    end
+
+    local t = math.max(0, self.numSteps - learn_start)
     lr_start = self.lr_start
     if metaFlag then
         lr_start = self.lr_meta
@@ -551,7 +556,7 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
 
 
     local alpha = 0.999
-    self.w_meta_target:mul(0.999):add(self.w_meta * (1-alpha))
+    self.w_meta_target:mul(alpha):add(self.w_meta * (1-alpha))
 
     -- TODO: depends on number of subgoals
     if  self.meta_args.n_actions == 6 then
@@ -774,9 +779,15 @@ end
 
 
 function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
+    -- handle learn_start
+    if mode == 'meta' then
+        learn_start = self.meta_learn_start
+    else
+        learn_start = self.learn_start
+    end
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+                math.max(0, self.numSteps - learn_start))/self.ep_endt))
    
     local subgoal_id = subgoal[#subgoal]
     if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
@@ -802,12 +813,12 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
             return torch.random(1, n_actions)
         end
     else
-        return self:greedy(network, n_actions, state, subgoal)
+        return self:greedy(network, n_actions, state, subgoal, lastsubgoal)
     end
 end
 
 
-function nql:greedy(network, n_actions,  state, subgoal)
+function nql:greedy(network, n_actions,  state, subgoal, lastsubgoal)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')
@@ -820,16 +831,23 @@ function nql:greedy(network, n_actions,  state, subgoal)
     end
     local q = network:forward({state, subgoal:zero()}):float():squeeze()
     local maxq = q[1]
-    local besta = {1}
+    local besta = { 1 }
+
+    if lastsubgoal == 1 then
+	    maxq = q[2]
+	    besta = { 2 }
+    end
     -- print("Q Value:", q)
     -- Evaluate all other actions (with random tie-breaking)
     for a = 2, n_actions do
-        if q[a] > maxq then
-            besta = { a }
-            maxq = q[a]
-        elseif q[a] == maxq then
-            besta[#besta+1] = a
-        end
+	    if a ~= lastsubgoal then
+            if q[a] > maxq then
+                besta = { a }
+                maxq = q[a]
+            elseif q[a] == maxq then
+                besta[#besta+1] = a
+            end
+	    end
     end
 
     local r = torch.random(1, #besta)
