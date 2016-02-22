@@ -130,6 +130,7 @@ death_counter = 0 --to handle a bug in MZ atari
 
 episode_step_counter = 0
 metareward = 0
+SAVE_NET_EXIT = false
 
 while step < opt.steps do
     xlua.progress(step, opt.steps)
@@ -268,6 +269,15 @@ while step < opt.steps do
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
                 ' & agent.numSteps: ' .. agent.numSteps)
         print("Steps: ", step)
+        if agent.subgoal_total[8] and agent.subgoal_success[8] and agent.subgoal_total[8] > 0 then
+            if agent.subgoal_total[8]>100 then
+                if (agent.subgoal_success[8]/agent.subgoal_total[8])>0.9 then
+                    print('SAVING NET:')
+                    SAVE_NET_EXIT = true
+                end
+            end
+        end
+
         agent:report(paths.concat(opt.exp_folder , 'subgoal_statistics_' .. step .. '.t7'))
         collectgarbage()
     end
@@ -432,7 +442,8 @@ while step < opt.steps do
             nepisodes, nrewards))        
     end
 
-    if step % opt.save_freq == 0 or step == opt.steps then
+
+    if SAVE_NET_EXIT or (step % opt.save_freq == 0 or step == opt.steps) then
         local s, a, r, s2, term = agent.valid_s, agent.valid_a, agent.valid_r,
             agent.valid_s2, agent.valid_term
         agent.valid_s, agent.valid_a, agent.valid_r, agent.valid_s2,
@@ -471,5 +482,11 @@ while step < opt.steps do
         print('Saved:', filename .. '.t7')
         io.flush()
         collectgarbage()
+
+        if SAVE_NET_EXIT then
+            io.read()
+            print('Halted ..... ')
+            SAVE_NET_EXIT = false
+        end
     end
 end
