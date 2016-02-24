@@ -161,7 +161,7 @@ function trans:sample_one()
     local indx
 
     --- choose to either select traces with external or internal reward
-    local chosen_trace_indxs = trace_indxs_with_extreward
+    local chosen_trace_indxs = self.trace_indxs_with_extreward
     if self:get_size(self.trace_indxs_with_extreward) == 0 then
         chosen_trace_indxs = self.trace_indxs_with_intreward
     else
