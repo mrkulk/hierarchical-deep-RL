@@ -19,6 +19,7 @@ else
 end
 
 require 'TransitionTable'
+require 'TransitionTable_priority'
 require 'Rectifier'
 
 
