@@ -217,26 +217,26 @@ function nql:__init(args)
     end
 
     -- copy the lower level weights from lower network
-    print(self.network.modules)
-    for i=1, #self.network.modules-1 do
-       print(self.network.modules[i])
-        if i==1 then
-            for j=1, #self.network.modules[1].modules do
-            if self.network.modules[1].modules[j].bias then
-               self.network_meta.modules[1].modules[j].bias = self.network.modules[1].modules[j].bias:clone()
-            end
-            if self.network.modules[1].modules[j].weights then
-                self.network_meta.modules[1].modules[j].weights = self.network.modules[1].modules[j].weights:clone()
-            end
-            end
-        end
-        if self.network.modules[i].bias then 
-            self.network_meta.modules[i].bias = self.network.modules[i].bias:clone()
-        end
-        if self.network.modules[i].weights then 
-        self.network_meta.modules[i].weights = self.network.modules[i].weights:clone()
-        end
-    end
+    --print(self.network.modules)
+    --for i=1, #self.network.modules-1 do
+    --   print(self.network.modules[i])
+    --    if i==1 then
+    --        for j=1, #self.network.modules[1].modules do
+    --        if self.network.modules[1].modules[j].bias then
+    --           self.network_meta.modules[1].modules[j].bias = self.network.modules[1].modules[j].bias:clone()
+    --        end
+    --        if self.network.modules[1].modules[j].weights then
+    --            self.network_meta.modules[1].modules[j].weights = self.network.modules[1].modules[j].weights:clone()
+    --        end
+    --        end
+    --    end
+    --    if self.network.modules[i].bias then 
+    --        self.network_meta.modules[i].bias = self.network.modules[i].bias:clone()
+    --    end
+    --    if self.network.modules[i].weights then 
+    --    self.network_meta.modules[i].weights = self.network.modules[i].weights:clone()
+    --    end
+    --end
 
     self.w, self.dw = self.network:getParameters()
     self.dw:zero()
