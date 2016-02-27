@@ -131,6 +131,10 @@ death_counter = 0 --to handle a bug in MZ atari
 episode_step_counter = 0
 metareward = 0
 SAVE_NET_EXIT = false
+cum_metareward = 0 
+numepisodes = 0
+
+test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
 
 while step < opt.steps do
     xlua.progress(step, opt.steps)
@@ -178,7 +182,11 @@ while step < opt.steps do
         print("SUM OF PIXELS: ", screen:sum())
         new_game = false
     end    
-
+    
+    if metareward > 100 then --end of game after door opens
+        terminal = true
+        death_counter = 4
+    end
 
     -- game over? get next game!
     if not terminal and  episode_step_counter < opt.max_steps_episode then
@@ -198,7 +206,6 @@ while step < opt.steps do
         end
         reward = reward + tmp_reward
         episode_step_counter = episode_step_counter + 1
-        -- screen, reward, terminal = game_env:step(game_actions[1], true)
         prev_Q = qfunc 
     else
         death_counter = death_counter + 1
@@ -209,6 +216,7 @@ while step < opt.steps do
             if metareward > 0 then
                 print('METAR:', metareward)
             end
+            cum_metareward = cum_metareward + metareward
             metareward = 0
         end
 
@@ -223,6 +231,7 @@ while step < opt.steps do
         if death_counter == 5 then
             screen,reward, terminal = game_env:newGame()
             death_counter = 0
+            numepisodes = numepisodes + 1
         end
 
         new_game = true
@@ -238,6 +247,7 @@ while step < opt.steps do
                 -- io.read()
             end
             subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
+            cum_metareward = cum_metareward + metareward
             metareward = 0
         else
             if opt.subgoal_index  < opt.max_subgoal_index then
@@ -281,8 +291,15 @@ while step < opt.steps do
 
     if step%1000 == 0 then collectgarbage() end
 
-    -- -- evaluation
-    -- if step % opt.eval_freq == 0 and step > learn_start then
+    -- evaluation
+    if step % opt.eval_freq == 0 and step > learn_start then
+        cum_metareward = cum_metareward / math.max(1,numepisodes)
+        test_avg_R:add{['% Average Meta Reward'] = cum_metareward}
+        test_avg_R:style{['% Average Meta Reward'] = '-'}; test_avg_R:plot()
+        numepisodes = 0
+        cum_metareward = 0
+    end
+
     --     print("Testing ...")
 
     --     local cum_reward_ext = 0
