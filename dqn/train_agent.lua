@@ -134,7 +134,7 @@ SAVE_NET_EXIT = false
 cum_metareward = 0 
 numepisodes = 0
 
-test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
+test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
 
 while step < opt.steps do
     xlua.progress(step, opt.steps)
