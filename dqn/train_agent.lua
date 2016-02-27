@@ -151,12 +151,8 @@ while step < opt.steps do
     --     win = image.display({image=screen, win=win})
     -- end
 
-    local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
-    metareward = metareward + reward_ext + 0.1 -- to offset for 0.1 penalty per step
-        -- remove death pen for metareward
-    if metareward < -100 then
-        metareward = 0
-    end
+    local action_index, isGoalReached, reward_ext, reward_tot,  qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
+    metareward = metareward + reward_ext
 
     if opt.stepthrough then
         print("Reward Ext", reward_ext)
@@ -187,20 +183,20 @@ while step < opt.steps do
     -- game over? get next game!
     if not terminal and  episode_step_counter < opt.max_steps_episode then
 
-
-        if isGoalReached and opt.subgoal_index < opt.max_subgoal_index then 
-            screen,reward, terminal = game_env:newGame()  -- restart game if focussing on single subgoal
-            subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-            if opt.subgoal_screen then
-                screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-            end
-            isGoalReached = false
-        end
+        -- if isGoalReached and opt.subgoal_index < opt.max_subgoal_index then 
+        --     screen,reward, terminal = game_env:newGame()  -- restart game if focussing on single subgoal
+        --     subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+        --     if opt.subgoal_screen then
+        --         screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        --     end
+        --     isGoalReached = false
+        -- end
 
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
         if not terminal then
-            screen, reward, terminal = game_env:step(game_actions[1], true) -- noop
+            screen, tmp_reward, terminal = game_env:step(game_actions[1], true) -- noop
         end
+        reward = reward + tmp_reward
         episode_step_counter = episode_step_counter + 1
         -- screen, reward, terminal = game_env:step(game_actions[1], true)
         prev_Q = qfunc 
@@ -283,164 +279,159 @@ while step < opt.steps do
     end
 
 
-     -- update dynamic discount
-    -- if step > learn_start then
-    --     agent.dynamic_discount = 0.02 + 0.98 * agent.dynamic_discount
-    -- end
-
     if step%1000 == 0 then collectgarbage() end
 
-    -- evaluation
-    if step % opt.eval_freq == 0 and step > learn_start then
-        print("Testing ...")
+    -- -- evaluation
+    -- if step % opt.eval_freq == 0 and step > learn_start then
+    --     print("Testing ...")
 
-        local cum_reward_ext = 0
-        local cum_reward_tot = 0
+    --     local cum_reward_ext = 0
+    --     local cum_reward_tot = 0
 
-        screen, reward, terminal = game_env:newGame()
-        if META_AGENT then
-            subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
-        else
-            subgoal = agent:pick_subgoal(screen)
-        end
+    --     screen, reward, terminal = game_env:newGame()
+    --     if META_AGENT then
+    --         subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
+    --     else
+    --         subgoal = agent:pick_subgoal(screen)
+    --     end
 
 
-        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
-        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
-        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
+    --     test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
+    --     test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
+    --     test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
 
-        total_reward = 0
-        nrewards = 0
-        nepisodes = 0
-        episode_reward = 0
+    --     total_reward = 0
+    --     nrewards = 0
+    --     nepisodes = 0
+    --     episode_reward = 0
 
-        death_counter_eval = 0
+    --     death_counter_eval = 0
 
-        local eval_time = sys.clock()
-        for estep=1,opt.eval_steps do
-            xlua.progress(estep, opt.eval_steps)
+    --     local eval_time = sys.clock()
+    --     for estep=1,opt.eval_steps do
+    --         xlua.progress(estep, opt.eval_steps)
 
-            subgoal_screen = screen:clone()
-            if opt.subgoal_screen then
-                subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                if opt.display_game  then win = image.display({image=subgoal_screen, win=win}) end
-            end
+    --         subgoal_screen = screen:clone()
+    --         if opt.subgoal_screen then
+    --             subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    --             if opt.display_game  then win = image.display({image=subgoal_screen, win=win}) end
+    --         end
 
-            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, subgoal_screen, terminal, true, 0.1)
-            metareward = metareward + reward_ext
+    --         local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, subgoal_screen, terminal, true, 0.1)
+    --         metareward = metareward + reward_ext
 
-            -- remove death pen for metareward
-            if metareward < -100 then
-                metareward = 0
-            end
+    --         -- remove death pen for metareward
+    --         if metareward < -100 then
+    --             metareward = 0
+    --         end
 
-            --if metareward > 0 then
-            --end
+    --         --if metareward > 0 then
+    --         --end
 
     
-            cum_reward_tot = cum_reward_tot + reward_tot
-            cum_reward_ext = cum_reward_ext + reward_ext
+    --         cum_reward_tot = cum_reward_tot + reward_tot
+    --         cum_reward_ext = cum_reward_ext + reward_ext
 
-            -- Play game in test mode (episodes don't end when losing a life)
-            screen, reward, terminal = game_env:step(game_actions[action_index])
-            if not terminal then
-                screen, reward, terminal = game_env:step(game_actions[1]) -- noop
-            end
+    --         -- Play game in test mode (episodes don't end when losing a life)
+    --         screen, reward, terminal = game_env:step(game_actions[action_index])
+    --         if not terminal then
+    --             screen, reward, terminal = game_env:step(game_actions[1]) -- noop
+    --         end
            
-            -- display screen (REDUNDANT?  - already being displayed above)
-            -- if opt.display_game and not opt.subgoal_screen then
-            --     screen_cropped = screen:clone()
-            --     screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-            --     screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-            --     win = image.display({image=screen_cropped, win=win})
-            -- end
+    --         -- display screen (REDUNDANT?  - already being displayed above)
+    --         -- if opt.display_game and not opt.subgoal_screen then
+    --         --     screen_cropped = screen:clone()
+    --         --     screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+    --         --     screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    --         --     win = image.display({image=screen_cropped, win=win})
+    --         -- end
 
-            if estep%1000 == 0 then collectgarbage() end
+    --         if estep%1000 == 0 then collectgarbage() end
 
-            -- record every reward
-            episode_reward = episode_reward + reward
-            if reward ~= 0 then
-               nrewards = nrewards + 1
-            end
+    --         -- record every reward
+    --         episode_reward = episode_reward + reward
+    --         if reward ~= 0 then
+    --            nrewards = nrewards + 1
+    --         end
 
-            if terminal then
-                total_reward = total_reward + episode_reward
-                episode_reward = 0
-                nepisodes = nepisodes + 1
+    --         if terminal then
+    --             total_reward = total_reward + episode_reward
+    --             episode_reward = 0
+    --             nepisodes = nepisodes + 1
 
-                if META_AGENT then
-                    subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
-                end
+    --             if META_AGENT then
+    --                 subgoal = agent:pick_subgoal(screen, nil, terminal, true, 0.1)
+    --             end
 
-                screen, reward, terminal = game_env:newGame()
-                isGoalReached = true --new game so reset subgoal
-                death_counter_eval = death_counter_eval + 1
+    --             screen, reward, terminal = game_env:newGame()
+    --             isGoalReached = true --new game so reset subgoal
+    --             death_counter_eval = death_counter_eval + 1
 
-                if death_counter_eval == 5 then
-                    screen,reward, terminal = game_env:newGame()
-                    death_counter_eval = 0
-                end
-            end
+    --             if death_counter_eval == 5 then
+    --                 screen,reward, terminal = game_env:newGame()
+    --                 death_counter_eval = 0
+    --             end
+    --         end
 
-            if isGoalReached then
-                if META_AGENT then
-                    subgoal = agent:pick_subgoal(screen, nil, false, true, 0.1)
-                else
-                    subgoal = agent:pick_subgoal(screen)
-                end
-                isGoalReached = false
-            end
+    --         if isGoalReached then
+    --             if META_AGENT then
+    --                 subgoal = agent:pick_subgoal(screen, nil, false, true, 0.1)
+    --             else
+    --                 subgoal = agent:pick_subgoal(screen)
+    --             end
+    --             isGoalReached = false
+    --         end
 
-        end
+    --     end
 
-        eval_time = sys.clock() - eval_time
-        start_time = start_time + eval_time
-        -- agent:compute_validation_statistics()
-        local ind = #reward_history+1
-        total_reward = total_reward/math.max(1, nepisodes)
+    --     eval_time = sys.clock() - eval_time
+    --     start_time = start_time + eval_time
+    --     -- agent:compute_validation_statistics()
+    --     local ind = #reward_history+1
+    --     total_reward = total_reward/math.max(1, nepisodes)
 
-        cum_reward_ext = cum_reward_ext / math.max(1,nepisodes)
-        cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
+    --     cum_reward_ext = cum_reward_ext / math.max(1,nepisodes)
+    --     cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
 
-        if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            agent.best_network_meta = agent.network_meta:clone()
-        end
+    --     if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
+    --         agent.best_network_meta = agent.network_meta:clone()
+    --     end
 
-        if agent.v_avg then
-            v_history[ind] = agent.v_avg
-            td_history[ind] = agent.tderr_avg
-            qmax_history[ind] = agent.q_max
-        end
-        print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
+    --     if agent.v_avg then
+    --         v_history[ind] = agent.v_avg
+    --         td_history[ind] = agent.tderr_avg
+    --         qmax_history[ind] = agent.q_max
+    --     end
+    --     print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
 
-        test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
-        test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
-        test_avg_Q:add{['% Average Q'] = agent.v_avg}
+    --     test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
+    --     test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
+    --     test_avg_Q:add{['% Average Q'] = agent.v_avg}
      
 
-        test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
-        test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
+    --     test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
+    --     test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
 
-        test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
+    --     test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
       
-        reward_history[ind] = total_reward
-        reward_counts[ind] = nrewards
-        episode_counts[ind] = nepisodes
+    --     reward_history[ind] = total_reward
+    --     reward_counts[ind] = nrewards
+    --     episode_counts[ind] = nepisodes
 
-        time_history[ind+1] = sys.clock() - start_time
+    --     time_history[ind+1] = sys.clock() - start_time
 
-        local time_dif = time_history[ind+1] - time_history[ind]
+    --     local time_dif = time_history[ind+1] - time_history[ind]
 
-        local training_rate = opt.actrep*opt.eval_freq/time_dif
+    --     local training_rate = opt.actrep*opt.eval_freq/time_dif
 
-        print(string.format(
-            '\nSteps: %d (frames: %d), extrinsic reward: %.2f, total reward (I+E): %.2f, epsilon: %.2f, lr: %G, ' ..
-            'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
-            'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
-            step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
-            training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
-            nepisodes, nrewards))        
-    end
+    --     print(string.format(
+    --         '\nSteps: %d (frames: %d), extrinsic reward: %.2f, total reward (I+E): %.2f, epsilon: %.2f, lr: %G, ' ..
+    --         'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
+    --         'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
+    --         step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
+    --         training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
+    --         nepisodes, nrewards))        
+    -- end
 
 
     if SAVE_NET_EXIT or (step % opt.save_freq == 0 or step == opt.steps) then

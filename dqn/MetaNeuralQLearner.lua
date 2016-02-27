@@ -643,11 +643,7 @@ end
 
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
-    if terminal then
-        reward = -200
-        -- print("died")
-    end
-
+    
     local state = self:preprocess(rawstate):float()
     local objects = self:get_objects(rawstate)
 
@@ -657,7 +653,16 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     local goal_reached = self:isGoalReached(subgoal, objects)
     local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
-    reward = reward - 0.1 -- penalize for just standing
+
+    if terminal then
+        -- reward = -200
+        -- print("died")
+        intrinsic_reward = intrinsic_reward - 200
+    end
+
+    -- reward = reward - 0.1 -- penalize for just standing
+    intrinsic_reward = intrinsic_reward - 0.1
+
     if goal_reached then
         intrinsic_reward = intrinsic_reward + 50
     end
@@ -687,7 +692,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
                     end
             -- print("Intrinsic Reward:", intrinsic_reward)
 
-            self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
+            self.transitions:add(self.lastState, self.lastAction, torch.Tensor({reward,  intrinsic_reward}),
                             self.lastTerminal, self.lastSubgoal, priority)
         end
         -- print("STORING PREV TRANSITION", self.lastState:sum(), self.lastAction, torch.Tensor({reward, reward + intrinsic_reward}),
