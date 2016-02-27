@@ -181,6 +181,7 @@ function nql:__init(args)
         subgoal_dims = args.subgoal_dims
     }
     self.meta_transitions = dqn.TransitionTable_priority(meta_transition_args)
+    --self.meta_transitions = dqn.TransitionTable(meta_transition_args)
 
     self.numSteps = 0 -- Number of perceived states.
     self.lastState = nil
