@@ -164,7 +164,8 @@ function nql:__init(args)
     local transition_args = {
         stateDim = self.state_dim, numActions = self.n_actions,
         histLen = self.hist_len, gpu = self.gpu,
-        maxSize = self.replay_memory, histType = self.histType,
+        maxSize = 200000, --self.replay_memory, 
+        histType = self.histType,
         histSpacing = self.histSpacing, nonTermProb = self.nonTermProb,
         bufferSize = self.bufferSize,
         subgoal_dims = args.subgoal_dims
@@ -175,7 +176,8 @@ function nql:__init(args)
     local meta_transition_args = {
         stateDim = self.state_dim, numActions = args.max_objects,
         histLen = self.hist_len, gpu = self.gpu,
-        maxSize = self.replay_memory, histType = self.histType,
+        maxSize = 50000, --self.replay_memory, 
+        histType = self.histType,
         histSpacing = self.histSpacing, nonTermProb = self.nonTermProb,
         bufferSize = 512,
         subgoal_dims = args.subgoal_dims
