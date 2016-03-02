@@ -48,7 +48,7 @@ jobs = [
 for job in jobs:
     jobname = "subgoals_"
     savedir_prefix = "saved_networks/"
-    exp_name = 'eps_endt=' + str(job['eps_endt']) + "_lr=" + str(job['lr']) + '_port=' + str(job['port']) + '_usedist=' + str(job['use_distance'])
+    exp_name = 'lower=200k_meta=50k_eps_endt=' + str(job['eps_endt']) + "_lr=" + str(job['lr']) + '_port=' + str(job['port']) + '_usedist=' + str(job['use_distance'])
     flagstring = "./run_exp.sh " + exp_name + " " + str(job['port']) + " 12 " + str(job['use_distance']) + " " + str(job['eps_endt']) + " " + str(job['lr'])
     print(flagstring)
     jobname = jobname + exp_name
