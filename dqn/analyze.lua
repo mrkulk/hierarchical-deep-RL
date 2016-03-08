@@ -29,7 +29,7 @@ for f in paths.files(dir) do
     if string.match(f, "subgoal_statistics") then
         -- print(f)
     	local stats = torch.load(dir .. '/' .. f)
-    	print('--------')
+    	--print('--------')
     	-- print(stats[1])
     	--print(stats[3])
     	for sid, hitrate in pairs(stats[2]) do
@@ -39,12 +39,12 @@ for f in paths.files(dir) do
     		finalcount[sid] = finalcount[sid] + stats[2][sid]
     	end
     
-    	for i=3,8 do
-    		if stats[2][i] and stats[2][i] > 0  then
-    			top = stats[1][i]  or 0
-    			print(i, ":", top/stats[2][i], stats[2][i])
-    		end
-    	end    
+    	--for i=3,8 do
+    	--	if stats[2][i] and stats[2][i] > 0  then
+    	--		top = stats[1][i]  or 0
+    	--		print(i, ":", top/stats[2][i], stats[2][i])
+    	--	end
+    	--end    
     end
 end
 
