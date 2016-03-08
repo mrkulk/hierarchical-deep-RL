@@ -20,23 +20,35 @@ jobs = [
         'use_distance': 'true'
     },
     {
-        'eps_endt': 200000,
-        'lr': 0.001,
+        'eps_endt': 500000,
+        'lr': 0.00025,
         'port': 9002,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 200000,
-        'lr': 0.00025,
+        'eps_endt': 500000,
+        'lr': 0.0005,
         'port': 9003,
-        'use_distance': 'false'
+        'use_distance': 'true'
+    },
+    {
+        'eps_endt': 1000000,
+        'lr': 0.00025,
+        'port': 9004,
+        'use_distance': 'true'
+    },
+    {
+        'eps_endt': 1000000,
+        'lr': 0.0005,
+        'port': 9005,
+        'use_distance': 'true'
     },
 ]
 
 for job in jobs:
     jobname = "subgoals_"
     savedir_prefix = "saved_networks/"
-    exp_name = 'eps_endt=' + str(job['eps_endt']) + "_lr=" + str(job['lr']) + '_port=' + str(job['port']) + '_usedist=' + str(job['use_distance'])
+    exp_name = 'lower=200k_meta=50k_eps_endt=' + str(job['eps_endt']) + "_lr=" + str(job['lr']) + '_port=' + str(job['port']) + '_usedist=' + str(job['use_distance'])
     flagstring = "./run_exp.sh " + exp_name + " " + str(job['port']) + " 12 " + str(job['use_distance']) + " " + str(job['eps_endt']) + " " + str(job['lr'])
     print(flagstring)
     jobname = jobname + exp_name
@@ -48,5 +60,5 @@ for job in jobs:
         slurmfile.write("#SBATCH --error=slurm_logs/" + jobname + ".err\n")
         slurmfile.write(flagstring)
 
-    if False:
+    if True:
         os.system("sbatch --mem=50000 -N 1 -c 2 --gres=gpu:1 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")

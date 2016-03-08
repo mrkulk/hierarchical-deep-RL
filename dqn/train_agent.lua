@@ -6,8 +6,8 @@ See LICENSE file for full terms of limited license.
 require 'xlua'
 require 'optim'
 
-require 'signal'
-signal.signal("SIGPIPE", function() print("raised") end)
+-- require 'signal'
+-- signal.signal("SIGPIPE", function() print("raised") end)
 
 local cmd = torch.CmdLine()
 cmd:text()
@@ -295,7 +295,7 @@ while step < opt.steps do
     if step % opt.eval_freq == 0 and step > learn_start then
         cum_metareward = cum_metareward / math.max(1,numepisodes)
         test_avg_R:add{['% Average Meta Reward'] = cum_metareward}
-        test_avg_R:style{['% Average Meta Reward'] = '-'}; test_avg_R:plot()
+        -- test_avg_R:style{['% Average Meta Reward'] = '-'}; test_avg_R:plot()
         numepisodes = 0
         cum_metareward = 0
     end

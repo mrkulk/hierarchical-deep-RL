@@ -18,9 +18,9 @@ n_replay=1
 netfile="\"golden.t7\""
 update_freq=4
 actrep=4
-discount=0.99
-discount_internal=0.99
-dynamic_discount=0.99  #starting value for dynamic discounting scheme
+discount=1 	#0.99
+discount_internal=1 #0.99
+dynamic_discount=1 #0.99  #starting value for dynamic discounting scheme
 seed=$3 #using port as seed
 learn_start=50000 #50000 #100
 meta_learn_start=1000 #50000 #100
@@ -55,4 +55,4 @@ args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -
 echo $args
 
 cd dqn
-qlua train_agent.lua $args
+th train_agent.lua $args
