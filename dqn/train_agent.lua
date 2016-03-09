@@ -51,7 +51,7 @@ cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:option('-subgoal_dims', 7, 'dimensions of subgoals')
 cmd:option('-subgoal_nhid', 50, '')
-cmd:option('-display_game', false, 'option to display game')
+cmd:option('-display_game', true, 'option to display game')
 cmd:option('-port', 5550, 'Port for zmq connection')
 cmd:option('-stepthrough', false, 'Stepthrough')
 cmd:option('-subgoal_screen', true, 'overlay subgoal on screen')
@@ -195,7 +195,7 @@ while step < opt.steps do
     if metareward_threshold > 100 then
         subgoal:zero()
     end
-
+    
     -- game over? get next game!
     if not terminal and  episode_step_counter < opt.max_steps_episode then
 
@@ -220,7 +220,7 @@ while step < opt.steps do
         -- print("TERMINAL ENCOUNTERED")
         if META_AGENT then
             -- Note: this screen is the death screen (terminal)
-            if metareward_threshold < 100 then
+            if metareward_threshold < 400 then
                 subgoal = agent:pick_subgoal(screen, metareward, true, false)
             end
 
@@ -260,7 +260,7 @@ while step < opt.steps do
                 print("METAREWARD: ", metareward, "| subgoal:", subgoal[-1])
                 -- io.read()
             end
-            if metareward_threshold < 100 then
+            if metareward_threshold < 400 then
                 subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
             end
 
@@ -268,7 +268,7 @@ while step < opt.steps do
             metareward_threshold = metareward_threshold + metareward
             metareward = 0
         else
-            if metareward_threshold < 100 then
+            if metareward_threshold < 400 then
                 if opt.subgoal_index  < opt.max_subgoal_index then
                     subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
                 else
