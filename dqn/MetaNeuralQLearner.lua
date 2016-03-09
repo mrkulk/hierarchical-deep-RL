@@ -805,7 +805,7 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
                 math.max(0, self.numSteps - learn_start))/self.ep_endt))
    
     local subgoal_id = subgoal[#subgoal]
-    if mode ~= 'meta' and  subgoal_id ~= 0 then -- TODO: properly update later using running hit rate, 0-->no subgoal only real goal
+    if mode == 'meta' or mode ~= 'meta' and  subgoal_id ~= 0 then -- TODO: properly update later using running hit rate, 0-->no subgoal only real goal
         self.ep = 0.1
     end
 
