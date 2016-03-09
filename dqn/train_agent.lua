@@ -148,8 +148,8 @@ while step < opt.steps do
     if opt.subgoal_screen then
         if subgoal:sum() ~= 0 then --valid sub-goal
             subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-            if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
         end
+        if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
     end
 
     -- for i=1,#agent.objects do
@@ -220,7 +220,10 @@ while step < opt.steps do
         -- print("TERMINAL ENCOUNTERED")
         if META_AGENT then
             -- Note: this screen is the death screen (terminal)
-            subgoal = agent:pick_subgoal(screen, metareward, true, false)
+            if metareward_threshold < 100 then
+                subgoal = agent:pick_subgoal(screen, metareward, true, false)
+            end
+
             if metareward > 0 then
                 print('METAR:', metareward)
             end
@@ -257,15 +260,20 @@ while step < opt.steps do
                 print("METAREWARD: ", metareward, "| subgoal:", subgoal[-1])
                 -- io.read()
             end
-            subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
+            if metareward_threshold < 100 then
+                subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
+            end
+
             cum_metareward = cum_metareward + metareward
             metareward_threshold = metareward_threshold + metareward
             metareward = 0
         else
-            if opt.subgoal_index  < opt.max_subgoal_index then
-                subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-            else
-                subgoal = agent:pick_subgoal(screen)
+            if metareward_threshold < 100 then
+                if opt.subgoal_index  < opt.max_subgoal_index then
+                    subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
+                else
+                    subgoal = agent:pick_subgoal(screen)
+                end
             end
         end
 
@@ -273,15 +281,17 @@ while step < opt.steps do
     end
 
 
-    -- display screen
-    if opt.display_game then
-        if not opt.subgoal_screen then
-            screen_cropped = screen:clone()
-            screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-            screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-            win = image.display({image=screen_cropped, win=win})
-        end
-    end
+    -- -- display screen
+    -- if opt.display_game then
+    --     if not opt.subgoal_screen then
+    --         screen_cropped = screen:clone()
+    --         screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+    --         if subgoal:sum() ~= 0 then --valid sub-goal
+    --             screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    --         end
+    --         win = image.display({image=screen_cropped, win=win})
+    --     end
+    -- end
 
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
