@@ -134,6 +134,8 @@ SAVE_NET_EXIT = false
 cum_metareward = 0 
 numepisodes = 0
 
+metareward_threshold = 0
+
 test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
 
 while step < opt.steps do
@@ -144,8 +146,10 @@ while step < opt.steps do
     subgoal_screen = screen:clone() -- only do overlay on subgoal screen
 
     if opt.subgoal_screen then
-        subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
+        if subgoal:sum() ~= 0 then --valid sub-goal
+            subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+            if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
+        end
     end
 
     -- for i=1,#agent.objects do
@@ -183,9 +187,13 @@ while step < opt.steps do
         new_game = false
     end    
     
-    if metareward > 100 then --end of game after door opens
-        terminal = true
-        death_counter = 4
+    -- if metareward > 100 then --end of game after door opens
+        -- terminal = true
+        -- death_counter = 4
+    -- end
+
+    if metareward_threshold > 100 then
+        subgoal:zero()
     end
 
     -- game over? get next game!
@@ -217,6 +225,8 @@ while step < opt.steps do
                 print('METAR:', metareward)
             end
             cum_metareward = cum_metareward + metareward
+            metareward_threshold = metareward_threshold + metareward
+
             metareward = 0
         end
 
@@ -232,6 +242,7 @@ while step < opt.steps do
             screen,reward, terminal = game_env:newGame()
             death_counter = 0
             numepisodes = numepisodes + 1
+            metareward_threshold = 0
         end
 
         new_game = true
@@ -248,6 +259,7 @@ while step < opt.steps do
             end
             subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
             cum_metareward = cum_metareward + metareward
+            metareward_threshold = metareward_threshold + metareward
             metareward = 0
         else
             if opt.subgoal_index  < opt.max_subgoal_index then

@@ -377,7 +377,8 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     local s, a, r, s2, term, subgoals, subgoals2 = tran_table:sample(self.minibatch_size)
     -- print(r, s:sum(2))
-    if external_r then
+    if external_r then 
+        -----------DEPRECATED------------
         r = r[{{},1}] --extract external reward
         subgoals[{{},{1,self.subgoal_dims}}] = 0
         subgoals2[{{},{1,self.subgoal_dims}}] = 0
@@ -386,6 +387,7 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
         end
 
     else    
+        --------- CORRECT -------------
         r = r[{{},2}] --external + intrinsic reward 
     end
 
@@ -397,7 +399,7 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     -- get new gradient
     -- print(subgoals)
-    network:backward({s, subgoals}, targets)
+    network:backward({s, subgoals:zero()}, targets)
 
     -- add weight cost to gradient
     dw:add(-self.wc, w)
@@ -653,9 +655,14 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if terminal then
         self.deathPosition = objects[1][{{1,2}}] --just store the x and y coords of the agent
     end 
-
-    local goal_reached = self:isGoalReached(subgoal, objects)
-    local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
+    local intrinsic_reward = 0
+    local goal_reached = false
+    if subgoal:sum() ~= 0 then --valid subgoal
+        goal_reached = self:isGoalReached(subgoal, objects)
+        intrinsic_reward = self:intrinsic_reward(subgoal, objects)
+    else
+        intrinsic_reward = reward --intrinsic reward should be extrinsic
+    end
 
     if terminal then
         -- reward = -200
@@ -798,7 +805,7 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
                 math.max(0, self.numSteps - learn_start))/self.ep_endt))
    
     local subgoal_id = subgoal[#subgoal]
-    if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
+    if mode ~= 'meta' and  subgoal_id ~= 0 then -- TODO: properly update later using running hit rate, 0-->no subgoal only real goal
         self.ep = 0.1
     end
 
