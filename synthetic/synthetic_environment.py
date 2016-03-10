@@ -38,7 +38,7 @@ class skeleton_environment(Environment):
     currentState=0
 
     def env_init(self):
-        return "VERSION RL-Glue-3.0 PROBLEMTYPE episodic DISCOUNTFACTOR 1.0 OBSERVATIONS INTS (0 20)  ACTIONS INTS (0 1)  REWARDS (-1.0 1.0)  EXTRA skeleton_environment(Python) by Brian Tanner."
+        return "VERSION RL-Glue-3.0 PROBLEMTYPE episodic DISCOUNTFACTOR 1.0 OBSERVATIONS INTS (0 5)  ACTIONS INTS (0 1)  REWARDS (1/100 1.0)."
 
     def env_start(self):
         self.currentState=0
@@ -86,7 +86,7 @@ class skeleton_environment(Environment):
 
     def env_message(self,inMessage):
         if inMessage=="what is your name?":
-            return "my name is skeleton_environment, Python edition!";
+            return "my name is synthetic_environment, Python edition!";
         else:
             return "I don't know how to respond to your message";
 
