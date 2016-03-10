@@ -18,6 +18,7 @@
 
 import random
 import sys
+import pdb
 import copy
 from rlglue.agent.Agent import Agent
 from rlglue.agent import AgentLoader as AgentLoader
@@ -52,7 +53,7 @@ class skeleton_agent(Agent):
         thisIntAction=self.randGenerator.randint(0,1)
         returnAction=Action()
         returnAction.intArray=[thisIntAction]
-
+        #pdb.set_trace()
         lastAction=copy.deepcopy(returnAction)
         lastObservation=copy.deepcopy(observation)
 
