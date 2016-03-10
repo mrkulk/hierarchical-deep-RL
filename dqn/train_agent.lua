@@ -60,6 +60,7 @@ cmd:option('-max_steps_episode', 5000, 'Max steps per episode')
 
 cmd:option('-meta_agent', true, 'hierarchical training')
 cmd:option('-max_objects', 6, 'max number of objects in scene that are parsed and used as subgoals')
+cmd:option('-gif', false, 'gif on/off')
 
 
 
@@ -74,6 +75,7 @@ META_AGENT = opt.meta_agent
 if not dqn then
     require "initenv"
 end
+
 
 print(opt.env_params)
 print(opt.seed)
@@ -106,6 +108,30 @@ local nepisodes
 local episode_reward
 
 local screen, reward, terminal = game_env:getState()
+
+if opt.gif then
+    gd = require "gd"
+end
+
+
+local function add_gif(previm, scr, gif_filename)
+    local jpg = image.compressJPG(scr:squeeze(), 100)
+    local im = gd.createFromJpegStr(jpg:storage():string())
+    im:trueColorToPalette(false, 256)
+    if previm then 
+        im:paletteCopy(previm)
+    else
+        im:gifAnimBegin(gif_filename, true, 0) 
+    end
+    im:gifAnimAdd(gif_filename, false, 0, 0, 7, gd.DISPOSAL_NONE)
+    return im
+end
+
+local prev_screen_im, prev_screen_subgoalim
+if opt.gif then
+    prev_screen_im = add_gif(nil, screen, '../gifs/screen_seed=' .. opt.seed .. '.gif')
+    prev_screen_subgoalim = add_gif(nil, screen, '../gifs/subgoalscreen_seed=' .. opt.seed .. '.gif') 
+end
 
 print("Iteration ..", step)
 local win = nil
@@ -146,6 +172,11 @@ while step < opt.steps do
     if opt.subgoal_screen then
         subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
+    end
+
+    if opt.gif then
+        prev_screen_im = add_gif(prev_screen_im, screen, '../gifs/screen_seed=' .. opt.seed .. '.gif')
+        prev_screen_subgoalim = add_gif(prev_screen_subgoalim, subgoal_screen, '../gifs/subgoalscreen_seed=' .. opt.seed .. '.gif') 
     end
 
     -- for i=1,#agent.objects do

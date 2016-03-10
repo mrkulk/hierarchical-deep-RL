@@ -15,7 +15,7 @@ env_params="useRGB=true"
 agent="NeuralQLearner"
 n_replay=1
 # netfile="\"convnet_atari3\""
-netfile="\"golden.t7\""
+netfile="\"meta22_bsize256_montezuma_revenge.t7\""
 update_freq=4
 actrep=4
 discount=1 	#0.99
