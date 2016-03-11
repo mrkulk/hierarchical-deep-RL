@@ -63,8 +63,6 @@ cmd:option('-max_objects', 6, 'max number of objects in scene that are parsed an
 cmd:option('-gif', false, 'gif on/off')
 
 
-
-
 cmd:text()
 
 local opt = cmd:parse(arg)
@@ -107,31 +105,8 @@ local nrewards
 local nepisodes
 local episode_reward
 
-local screen, reward, terminal = game_env:getState()
+local screen, reward, terminal = game_env:newGame()
 
-if opt.gif then
-    gd = require "gd"
-end
-
-
-local function add_gif(previm, scr, gif_filename)
-    local jpg = image.compressJPG(scr:squeeze(), 100)
-    local im = gd.createFromJpegStr(jpg:storage():string())
-    im:trueColorToPalette(false, 256)
-    if previm then 
-        im:paletteCopy(previm)
-    else
-        im:gifAnimBegin(gif_filename, true, 0) 
-    end
-    im:gifAnimAdd(gif_filename, false, 0, 0, 7, gd.DISPOSAL_NONE)
-    return im
-end
-
-local prev_screen_im, prev_screen_subgoalim
-if opt.gif then
-    prev_screen_im = add_gif(nil, screen, '../gifs/screen_seed=' .. opt.seed .. '.gif')
-    prev_screen_subgoalim = add_gif(nil, screen, '../gifs/subgoalscreen_seed=' .. opt.seed .. '.gif') 
-end
 
 print("Iteration ..", step)
 local win = nil
@@ -148,9 +123,6 @@ else
     end
 end
 
-local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right','up-left','down-right','down-left',
-                    'up-fire', 'right-fire','left-fire', 'down-fire','up-right-fire','up-left-fire',
-                    'down-right-fire', 'down-left-fire'}
 
 death_counter = 0 --to handle a bug in MZ atari
 
@@ -165,28 +137,9 @@ test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR
 while step < opt.steps do
     xlua.progress(step, opt.steps)
 
-    step = step + 1
+    step = step + 1    
 
-    subgoal_screen = screen:clone() -- only do overlay on subgoal screen
-
-    if opt.subgoal_screen then
-        subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
-    end
-
-    if opt.gif then
-        prev_screen_im = add_gif(prev_screen_im, screen, '../gifs/screen_seed=' .. opt.seed .. '.gif')
-        prev_screen_subgoalim = add_gif(prev_screen_subgoalim, subgoal_screen, '../gifs/subgoalscreen_seed=' .. opt.seed .. '.gif') 
-    end
-
-    -- for i=1,#agent.objects do
-    --     if agent.objects[i][1] > 0 and agent.objects[i][2] > 0 then
-    --         screen[{1,{}, {30+agent.objects[i][1]-5, 30+agent.objects[i][1]+5}, {agent.objects[i][2]-5,agent.objects[i][2]+5} }] = 1
-    --     end
-    --     win = image.display({image=screen, win=win})
-    -- end
-
-    local action_index, isGoalReached, reward_ext, reward_tot,  qfunc = agent:perceive(subgoal, reward, subgoal_screen, terminal)
+    local action_index, isGoalReached, reward_ext, reward_tot,  qfunc = agent:perceive(subgoal, reward, screen, terminal)
     metareward = metareward + reward_ext
 
     if opt.stepthrough then
@@ -202,39 +155,13 @@ while step < opt.steps do
         print("Action", action_index, action_list[action_index])
         io.read()
     end
-
-    if false and new_game then--new_game then
-        print("Q-func")
-        if prev_Q then
-            for i=1, #action_list do
-                print(action_list[i], prev_Q[i])
-            end
-        end
-        print("SUM OF PIXELS: ", screen:sum())
-        new_game = false
-    end    
     
-    if metareward > 100 then --end of game after door opens
-        terminal = true
-        death_counter = 4
-    end
 
     -- game over? get next game!
     if not terminal and  episode_step_counter < opt.max_steps_episode then
 
-        -- if isGoalReached and opt.subgoal_index < opt.max_subgoal_index then 
-        --     screen,reward, terminal = game_env:newGame()  -- restart game if focussing on single subgoal
-        --     subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-        --     if opt.subgoal_screen then
-        --         screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        --     end
-        --     isGoalReached = false
-        -- end
-
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
-        if not terminal then
-            screen, tmp_reward, terminal = game_env:step(game_actions[1], true) -- noop
-        end
+
         reward = reward + tmp_reward
         episode_step_counter = episode_step_counter + 1
         prev_Q = qfunc 
@@ -244,26 +171,11 @@ while step < opt.steps do
         if META_AGENT then
             -- Note: this screen is the death screen (terminal)
             subgoal = agent:pick_subgoal(screen, metareward, true, false)
-            if metareward > 0 then
-                print('METAR:', metareward)
-            end
             cum_metareward = cum_metareward + metareward
             metareward = 0
         end
-
-        if opt.random_starts > 0 then
-            -- print("RANDOM GAME STARTING")
-            screen, reward, terminal = game_env:nextRandomGame()
-        else
-            -- print("NEW GAME STARTING")
-            screen, reward, terminal = game_env:newGame()
-        end
-        
-        if death_counter == 5 then
-            screen,reward, terminal = game_env:newGame()
-            death_counter = 0
-            numepisodes = numepisodes + 1
-        end
+    
+        screen, reward, terminal = game_env:newGame()
 
         new_game = true
         isGoalReached = true --new game so reset goal
@@ -280,41 +192,19 @@ while step < opt.steps do
             subgoal = agent:pick_subgoal(screen, metareward, terminal, false)
             cum_metareward = cum_metareward + metareward
             metareward = 0
-        else
-            if opt.subgoal_index  < opt.max_subgoal_index then
-                subgoal = agent:pick_subgoal(screen, opt.subgoal_index)
-            else
-                subgoal = agent:pick_subgoal(screen)
-            end
+        else        
+            subgoal = agent:pick_subgoal(screen)            
         end
 
         isGoalReached = false
     end
 
 
-    -- display screen
-    if opt.display_game then
-        if not opt.subgoal_screen then
-            screen_cropped = screen:clone()
-            screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-            screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-            win = image.display({image=screen_cropped, win=win})
-        end
-    end
-
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
                 ' & agent.numSteps: ' .. agent.numSteps)
         print("Steps: ", step)
-        if agent.subgoal_total[8] and agent.subgoal_success[8] and agent.subgoal_total[8] > 0 then
-            if agent.subgoal_total[8]>100 then
-                if (agent.subgoal_success[8]/agent.subgoal_total[8])>0.9 then
-                    print('SAVING NET:')
-                    SAVE_NET_EXIT = true
-                end
-            end
-        end
-
+        
         agent:report(paths.concat(opt.exp_folder , 'subgoal_statistics_' .. step .. '.t7'))
         collectgarbage()
     end

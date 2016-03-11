@@ -11,6 +11,7 @@ require 'nngraph'
 require 'nnutils'
 require 'image'
 require 'Scale'
+require 'game_env'
 
 if META_AGENT  then
     require 'MetaNeuralQLearner'
@@ -136,7 +137,8 @@ function setup(_opt)
     local framework = require(opt.framework)
     assert(framework)
 
-    local gameEnv = framework.GameEnvironment(opt)
+    local gameEnv = GameEnv(opt)
+    -- local gameEnv = framework.GameEnvironment(opt)
     local gameActions = gameEnv:getActions()
 
     -- agent options
