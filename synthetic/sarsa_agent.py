@@ -47,7 +47,7 @@ from random import Random
 #   -  Run the SampleMinesEnvironment and SampleExperiment from this or a
 #   different codec (Matlab, Python, Java, C, Lisp should all be fine)
 #   -  Start this agent like:
-#   $> python sample_sarsa_agent.py
+#   $> python sarsa_agent.py
 
 class sarsa_agent(Agent):
     randGenerator=Random()

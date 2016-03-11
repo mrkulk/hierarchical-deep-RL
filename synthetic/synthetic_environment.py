@@ -41,7 +41,7 @@ class skeleton_environment(Environment):
         return "VERSION RL-Glue-3.0 PROBLEMTYPE episodic DISCOUNTFACTOR 1.0 OBSERVATIONS INTS (0 5)  ACTIONS INTS (0 1)  REWARDS (1/100 1.0)."
 
     def env_start(self):
-        self.currentState=0
+        self.currentState=1
 
         returnObs=Observation()
         returnObs.intArray=[self.currentState]
@@ -55,7 +55,7 @@ class skeleton_environment(Environment):
         if thisAction.intArray[0]==0:
             self.currentState=self.currentState-1
         if thisAction.intArray[0]==1:
-            sampled_action =0#np.random.choice([0,1])
+            sampled_action =np.random.choice([0,1])
             if sampled_action == 0:
                 self.currentState=self.currentState-1
             else:
@@ -78,7 +78,10 @@ class skeleton_environment(Environment):
         returnRO.r=theReward
         returnRO.o=theObs
         returnRO.terminal=episodeOver
-
+        # print 'reward', returnRO.r
+        # print 'observation1', np.array(list(returnRO.o.intArray))
+        # print 'terminal', returnRO.terminal
+        # print ''
         return returnRO
 
     def env_cleanup(self):

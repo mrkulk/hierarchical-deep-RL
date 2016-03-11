@@ -1,5 +1,6 @@
 import random
 import sys
+import pdb
 import copy
 from rlglue.agent.Agent import Agent
 from rlglue.agent import AgentLoader as AgentLoader
@@ -58,7 +59,6 @@ class skeleton_agent(Agent):
         return returnAction
 
     def agent_step(self,reward, observation):
-
      
         state = np.array(list(observation.intArray))
         reward = reward
@@ -68,6 +68,7 @@ class skeleton_agent(Agent):
         returnAction = int(socket.recv())
 
         self.lastObservation = copy.deepcopy(observation)
+
 
         return returnAction
 
