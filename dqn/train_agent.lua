@@ -125,7 +125,7 @@ local action_list = {'no-op', 'fire', 'up', 'right', 'left', 'down', 'up-right',
 death_counter = 0 --to handle a bug in MZ atari
 
 episode_step_counter = 0
-
+numepisodes = 0
 cum_metareward = 0
 test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
 
@@ -212,6 +212,7 @@ while step < opt.steps do
         if death_counter == 5 then
             screen,reward, terminal = game_env:newGame()
             death_counter = 0
+            numepisodes = numepisodes + 1
         end
 
         new_game = true
