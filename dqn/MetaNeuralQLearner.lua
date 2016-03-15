@@ -546,7 +546,7 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
         self.metanumSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
             self:qLearnMinibatch(self.network_meta, self.target_network_meta, self.meta_transitions,
-             self.dw_meta, self.w_meta, self.g_meta, self.g2_meta, self.tmp_meta, self.deltas_meta, false, self.meta_args.n_actions)
+             self.dw_meta, self.w_meta, self.g_meta, self.g2_meta, self.tmp_meta, self.deltas_meta, false, self.meta_args.n_actions, true)
         end
     end
 
