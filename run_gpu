@@ -56,4 +56,4 @@ args="-framework $FRAMEWORK -exp_folder logs/$agent_type -game_path $game_path -
 echo $args
 
 cd dqn
-qlua train_agent.lua $args
+th train_agent.lua $args
