@@ -1,6 +1,7 @@
 -- analyze subgoal success
 
-expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
+--expname = 'eps_endt=200000_lr=0.00025_port=9000_usedist=true'
+expname = 'meta22_bsize256_run2'
 dir = 'logs/' .. expname
 
 finalstats = {}

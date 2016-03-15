@@ -126,6 +126,9 @@ death_counter = 0 --to handle a bug in MZ atari
 
 episode_step_counter = 0
 
+cum_metareward = 0
+test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
+
 while step < opt.steps do
     xlua.progress(step, opt.steps)
 
@@ -142,6 +145,9 @@ while step < opt.steps do
     --     end
     --     win = image.display({image=screen, win=win})
     -- end
+    
+    --for plotting
+    cum_metareward = cum_metareward + reward
 
     local action_index, isGoalReached, reward_ext, reward_tot, qfunc = agent:perceive(subgoal, reward, screen, terminal)
     
@@ -252,135 +258,138 @@ while step < opt.steps do
 
     -- evaluation
     if step % opt.eval_freq == 0 and step > learn_start then
-        print("Testing ...")
-
-        local cum_reward_ext = 0
-        local cum_reward_tot = 0
-
-        screen, reward, terminal = game_env:newGame()
-        subgoal = agent:pick_subgoal(screen)
-        if opt.subgoal_screen then
-            screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-        end
-
-
-        test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
-        test_avg_R = test_avg_R or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR.log'))
-        test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
-
-        total_reward = 0
-        nrewards = 0
-        nepisodes = 0
-        episode_reward = 0
-
-        death_counter_eval = 0
-
-        local eval_time = sys.clock()
-        for estep=1,opt.eval_steps do
-            xlua.progress(estep, opt.eval_steps)
-
-
-            if opt.subgoal_screen then
-                screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                if opt.display_game  then win = image.display({image=screen, win=win}) end
-            end
-
-            local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
-
-
-            cum_reward_tot = cum_reward_tot + reward_tot
-            cum_reward_ext = cum_reward_ext + reward_ext
-
-            -- Play game in test mode (episodes don't end when losing a life)
-            screen, reward, terminal = game_env:step(game_actions[action_index])
-            if not terminal then
-                screen, reward, terminal = game_env:step(game_actions[1]) -- noop
-            end
-           
-            -- display screen
-            if opt.display_game and not opt.subgoal_screen then
-                screen_cropped = screen:clone()
-                screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-                screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
-                win = image.display({image=screen_cropped, win=win})
-            end
-
-            if estep%1000 == 0 then collectgarbage() end
-
-            -- record every reward
-            episode_reward = episode_reward + reward
-            if reward ~= 0 then
-               nrewards = nrewards + 1
-            end
-
-            if terminal then
-                total_reward = total_reward + episode_reward
-                episode_reward = 0
-                nepisodes = nepisodes + 1
-                screen, reward, terminal = game_env:newGame()
-                isGoalReached = true --new game so reset subgoal
-                death_counter_eval = death_counter_eval + 1
-
-                if death_counter_eval == 5 then
-                    screen,reward, terminal = game_env:newGame()
-                    death_counter_eval = 0
-                end
-            end
-            if isGoalReached then
-                subgoal = agent:pick_subgoal(screen)
-                isGoalReached = false
-            end
-
-        end
-
-        eval_time = sys.clock() - eval_time
-        start_time = start_time + eval_time
-        agent:compute_validation_statistics()
-        local ind = #reward_history+1
-        total_reward = total_reward/math.max(1, nepisodes)
-
-        cum_reward_ext = cum_reward_ext / math.max(1,nepisodes)
-        cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
-
-        if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            agent.best_network_real = agent.network_real:clone()
-        end
-
-        if agent.v_avg then
-            v_history[ind] = agent.v_avg
-            td_history[ind] = agent.tderr_avg
-            qmax_history[ind] = agent.q_max
-        end
-        print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
-
-        -- test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
-        -- test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
-        -- test_avg_Q:add{['% Average Q'] = agent.v_avg}
-     
-
-        -- test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
-        -- test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
-
-        -- test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
-      
-        reward_history[ind] = total_reward
-        reward_counts[ind] = nrewards
-        episode_counts[ind] = nepisodes
-
-        time_history[ind+1] = sys.clock() - start_time
-
-        local time_dif = time_history[ind+1] - time_history[ind]
-
-        local training_rate = opt.actrep*opt.eval_freq/time_dif
-
-        print(string.format(
-            '\nSteps: %d (frames: %d), extrinsic reward: %.2f, total reward (I+E): %.2f, epsilon: %.2f, lr: %G, ' ..
-            'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
-            'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
-            step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
-            training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
-            nepisodes, nrewards))
+        cum_metareward = cum_metareward / math.max(1, numepisodes) 
+        test_avg_R:add{['% Average Meta Reward'] = cum_metareward}; test_avg_R:plot()
+        numepisodes = 0
+        cum_metareward = 0
     end
+    --     print("Testing ...")
+
+    --     local cum_reward_ext = 0
+    --     local cum_reward_tot = 0
+
+    --     screen, reward, terminal = game_env:newGame()
+    --     subgoal = agent:pick_subgoal(screen)
+    --     if opt.subgoal_screen then
+    --         screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    --     end
+
+
+    --     test_avg_Q = test_avg_Q or optim.Logger(paths.concat(opt.exp_folder , 'test_avgQ.log'))
+    --     test_avg_R2 = test_avg_R2 or optim.Logger(paths.concat(opt.exp_folder , 'test_avgR2.log'))
+
+    --     total_reward = 0
+    --     nrewards = 0
+    --     nepisodes = 0
+    --     episode_reward = 0
+
+    --     death_counter_eval = 0
+
+    --     local eval_time = sys.clock()
+    --     for estep=1,opt.eval_steps do
+    --         xlua.progress(estep, opt.eval_steps)
+
+    --         if opt.subgoal_screen then
+    --             screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    --             if opt.display_game  then win = image.display({image=screen, win=win}) end
+    --         end
+
+    --         local action_index, isGoalReached, reward_ext, reward_tot = agent:perceive(subgoal, reward, screen, terminal, true, 0.1)
+
+
+    --         cum_reward_tot = cum_reward_tot + reward_tot
+    --         cum_reward_ext = cum_reward_ext + reward_ext
+
+    --         -- Play game in test mode (episodes don't end when losing a life)
+    --         screen, reward, terminal = game_env:step(game_actions[action_index])
+    --         if not terminal then
+    --             screen, reward, terminal = game_env:step(game_actions[1]) -- noop
+    --         end
+    --        
+    --         -- display screen
+    --         if opt.display_game and not opt.subgoal_screen then
+    --             screen_cropped = screen:clone()
+    --             screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+    --             screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+    --             win = image.display({image=screen_cropped, win=win})
+    --         end
+
+    --         if estep%1000 == 0 then collectgarbage() end
+
+    --         -- record every reward
+    --         episode_reward = episode_reward + reward
+    --         if reward ~= 0 then
+    --            nrewards = nrewards + 1
+    --         end
+
+    --         if terminal then
+    --             total_reward = total_reward + episode_reward
+    --             episode_reward = 0
+    --             nepisodes = nepisodes + 1
+    --             screen, reward, terminal = game_env:newGame()
+    --             isGoalReached = true --new game so reset subgoal
+    --             death_counter_eval = death_counter_eval + 1
+
+    --             if death_counter_eval == 5 then
+    --                 screen,reward, terminal = game_env:newGame()
+    --                 death_counter_eval = 0
+    --             end
+    --         end
+    --         if isGoalReached then
+    --             subgoal = agent:pick_subgoal(screen)
+    --             isGoalReached = false
+    --         end
+
+    --     end
+
+    --     eval_time = sys.clock() - eval_time
+    --     start_time = start_time + eval_time
+    --     agent:compute_validation_statistics()
+    --     local ind = #reward_history+1
+    --     total_reward = total_reward/math.max(1, nepisodes)
+
+    --     cum_reward_ext = cum_reward_ext / math.max(1,nepisodes)
+    --     cum_reward_tot = cum_reward_tot / math.max(1,nepisodes)
+
+    --     if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
+    --         agent.best_network_real = agent.network_real:clone()
+    --     end
+
+    --     if agent.v_avg then
+    --         v_history[ind] = agent.v_avg
+    --         td_history[ind] = agent.tderr_avg
+    --         qmax_history[ind] = agent.q_max
+    --     end
+    --     print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
+
+    --     -- test_avg_R:add{['% Average Extrinsic Reward'] = cum_reward_ext}
+    --     -- test_avg_R2:add{['% Average Total Reward'] = cum_reward_tot}
+    --     -- test_avg_Q:add{['% Average Q'] = agent.v_avg}
+    --  
+
+    --     -- test_avg_R:style{['% Average Extrinsic Reward'] = '-'}; test_avg_R:plot()
+    --     -- test_avg_R2:style{['% Average Total Reward'] = '-'}; test_avg_R2:plot()
+
+    --     -- test_avg_Q:style{['% Average Q'] = '-'}; test_avg_Q:plot()
+    --   
+    --     reward_history[ind] = total_reward
+    --     reward_counts[ind] = nrewards
+    --     episode_counts[ind] = nepisodes
+
+    --     time_history[ind+1] = sys.clock() - start_time
+
+    --     local time_dif = time_history[ind+1] - time_history[ind]
+
+    --     local training_rate = opt.actrep*opt.eval_freq/time_dif
+
+    --     print(string.format(
+    --         '\nSteps: %d (frames: %d), extrinsic reward: %.2f, total reward (I+E): %.2f, epsilon: %.2f, lr: %G, ' ..
+    --         'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
+    --         'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
+    --         step, step*opt.actrep, cum_reward_ext, cum_reward_tot, agent.ep, agent.lr, time_dif,
+    --         training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
+    --         nepisodes, nrewards))
+    -- end
 
     if step % opt.save_freq == 0 or step == opt.steps then
         local s, a, r, s2, term = agent.valid_s, agent.valid_a, agent.valid_r,
