@@ -1,3 +1,6 @@
+*.py
+*.pdf
+*.h5
 gifs
 slurm_scripts
 *.t7
