@@ -10,37 +10,37 @@ jobs = [
     {
         'eps_endt': 500000,
         'lr': 0.00025,
-        'port': 9000,
+        'port': 5000,
         'use_distance': 'true'
     },
     {
         'eps_endt': 500000,
         'lr': 0.00025,
-        'port': 9001,
+        'port': 5001,
         'use_distance': 'true'
     },
     {
         'eps_endt': 500000,
         'lr': 0.00025,
-        'port': 9002,
+        'port': 5002,
         'use_distance': 'true'
     },
     {
         'eps_endt': 500000,
         'lr': 0.00025,
-        'port': 9003,
+        'port': 5003,
         'use_distance': 'true'
     },
     {
         'eps_endt': 500000,
         'lr': 0.00025,
-        'port': 9004,
+        'port': 5004,
         'use_distance': 'true'
     },
     {
         'eps_endt': 500000,
         'lr': 0.00025,
-        'port': 9005,
+        'port': 5005,
         'use_distance': 'true'
     },
 ]
