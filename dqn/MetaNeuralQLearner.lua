@@ -558,7 +558,8 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     end
 
     -- Return subgoal    
-    return torch.Tensor({subg})
+    return torch.Tensor({subg}) --for hierarchical
+    -- return torch.Tensor({1}) -- for basic DQN
 end
 
 function nql:isGoalReached(subgoal, rawstate)
@@ -608,6 +609,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         intrinsic_reward = intrinsic_reward + 50
     end
 
+
+
     local curState
 
     if self.max_reward then
@@ -623,6 +626,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     intrinsic_reward = intrinsic_reward - 0.01 -- step penalty
 
     -- print("intrinsic_reward", intrinsic_reward)
+
+    -- intrinsic_reward = 0 -- for basic DQN
 
     self.transitions:add_recent_state(state, terminal, subgoal)  
 
