@@ -1,4 +1,5 @@
 #!/bin/bash
+#example - killall python; ./run_exp.sh basic 7561 12 true
 
 if [ -z "$1" ]
   then echo "Please provide the name of the game and a log name and a port, e.g.  ./run_gpu breakout basic1 5000 <optional subgoal> <optional use_distance> <optional eps_endt> <optional lr>"; exit 0

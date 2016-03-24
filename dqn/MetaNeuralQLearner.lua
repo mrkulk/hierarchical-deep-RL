@@ -557,8 +557,6 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
         table.insert(self.subgoal_seq, subg)
     end
 
-    -- print("subg", subg)
-
     -- Return subgoal    
     return torch.Tensor({subg})
 end
@@ -595,13 +593,16 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local state = rawstate:clone()
 
     -- if terminal then
-    --     print(subgoal[1], rawstate[1], terminal)
-    --     io.read()
+        -- print(subgoal[1], rawstate[1], terminal)
+        -- io.read()
     -- end
 
     local goal_reached = self:isGoalReached(subgoal, state)
-    local intrinsic_reward = self:intrinsic_reward(subgoal, state)
-
+    local intrinsic_reward = 0
+    if self.use_distance then
+        intrinsic_reward = self:intrinsic_reward(subgoal, state)
+    end
+    
     if goal_reached then
         -- print("GOAL reached")
         intrinsic_reward = intrinsic_reward + 50
