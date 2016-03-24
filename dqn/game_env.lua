@@ -5,25 +5,20 @@ local env = torch.class('GameEnv')
 local json = require ("dkjson")
 local zmq = require "lzmq"
 
-if pcall(require, 'signal') then
-    signal.signal("SIGPIPE", function() print("raised") end)
-else
-    print("No signal module found. Assuming SIGPIPE is okay.")
-end
 
 function env:__init(args)
     -- for agent
     self.ctx = zmq.context()
     self.skt = self.ctx:socket{zmq.REQ,
         linger = 0, rcvtimeo = 10000;
-        connect = "tcp://127.0.0.1:" .. args.zmq_port;
+        connect = "tcp://127.0.0.1:" .. ZMQ_PORT;
     }
 
     -- for exp
     self.ctx2 = zmq.context()
     self.skt2 = self.ctx2:socket{zmq.REQ,
         linger = 0, rcvtimeo = 10000;
-        connect = "tcp://127.0.0.1:" .. tostring(args.zmq_port+1);
+        connect = "tcp://127.0.0.1:" .. (ZMQ_PORT+1);
     }
 end
 
@@ -39,7 +34,13 @@ end
 
 function env:newGame()
     self.skt2:send("newGame")
-    msg = self.skt2:recv()
+    msg_env = self.skt2:recv()
+    while msg_env == nil do
+        msg_env = self.skt2:recv()
+    end
+    assert(msg_env == 'dummy-env')
+    self.skt:send("dummy")
+    msg = self.skt:recv()
     while msg == nil do
         msg = self.skt:recv()
     end
@@ -48,7 +49,7 @@ end
 
 
 function env:step(action, ignore_flag)
-    assert(action==1 or action==0, "Action " .. tostring(action))
+    assert(action==1 or action==2, "Action " .. tostring(action))
     self.skt:send(tostring(action))
     msg = self.skt:recv()
     while msg == nil do
@@ -71,5 +72,5 @@ end
 
 
 function env:getActions()   
-    return {0,1} -- actions 
+    return {1, 2} -- actions 
 end

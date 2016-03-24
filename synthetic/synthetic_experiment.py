@@ -16,19 +16,18 @@
 # limitations under the License.
 #
 
-import sys, argparser, zmq
+import sys, zmq
 
 import rlglue.RLGlue as RLGlue
 
 whichEpisode=0
 
-argparser = argparse.ArgumentParser(sys.argv[0])
-argparser.add_argument("--port",
-    type = int,
-    default = 5051,
-    help = "port for server")
+port = int(sys.argv[1])+1
+context = zmq.Context()
+socket = context.socket(zmq.REP)
+socket.bind("tcp://*:%s" % port)
+print "Started server on port", port
 
-args = argparser.parse_args()
 
 def runEpisode(stepLimit):
 	global whichEpisode
@@ -36,7 +35,7 @@ def runEpisode(stepLimit):
 	totalSteps=RLGlue.RL_num_steps()
 	totalReward=RLGlue.RL_return()
 	
-	print "Episode "+str(whichEpisode)+"\t "+str(totalSteps)+ " steps \t" + str(totalReward) + " total reward\t " + str(terminal) + " natural end"
+	# print "Episode "+str(whichEpisode)+"\t "+str(totalSteps)+ " steps \t" + str(totalReward) + " total reward\t " + str(terminal) + " natural end"
 	
 	whichEpisode=whichEpisode+1
 
@@ -64,6 +63,8 @@ print "\n\n----------Running a few episodes----------"
 
 while True:
     message = socket.recv()
+    # print "ENVIRONMENT received:", message
+    socket.send("dummy-env")
     if message == "newGame":
         runEpisode(100)
     else:

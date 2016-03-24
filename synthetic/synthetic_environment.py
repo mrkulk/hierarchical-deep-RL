@@ -35,13 +35,15 @@ from rlglue.types import Reward_observation_terminal
 #  */
 
 class skeleton_environment(Environment):
-    currentState=0
+  
 
     def env_init(self):
+        self.LEFT = 1
+        self.RIGHT = 2
         return "VERSION RL-Glue-3.0 PROBLEMTYPE episodic DISCOUNTFACTOR 1.0 OBSERVATIONS INTS (0 5)  ACTIONS INTS (0 1)  REWARDS (1/100 1.0)."
 
     def env_start(self):
-        self.currentState=1
+        self.currentState=2
 
         returnObs=Observation()
         returnObs.intArray=[self.currentState]
@@ -52,22 +54,23 @@ class skeleton_environment(Environment):
         episodeOver=0
         theReward=0
         #print 'here'
-        if thisAction.intArray[0]==0:
+        if thisAction.intArray[0]==self.LEFT:
             self.currentState=self.currentState-1
-        if thisAction.intArray[0]==1:
-            sampled_action =np.random.choice([0,1])
-            if sampled_action == 0:
+        if thisAction.intArray[0]==self.RIGHT:
+            sampled_action =np.random.choice([self.LEFT,self.RIGHT])
+            # sampled_action =np.random.choice([self.RIGHT])
+            if sampled_action == self.LEFT:
                 self.currentState=self.currentState-1
             else:
                 self.currentState=self.currentState+1
         #print self.currentState
-        if self.currentState <= 0:
-            self.currentState=0
+        if self.currentState <= 1:
+            self.currentState=1
             theReward=1./100
             episodeOver=1
 
-        if self.currentState >= 5:
-            self.currentState=5
+        if self.currentState >= 6:
+            self.currentState=6
             theReward=1.
             episodeOver=1
 

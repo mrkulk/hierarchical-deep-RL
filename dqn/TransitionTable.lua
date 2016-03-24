@@ -54,7 +54,7 @@ function trans:__init(args)
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
     self.r = torch.zeros(self.maxSize,2)
-    self.subgoal_dims = args.subgoal_dims*9 --TODO (total number of objects)
+    self.subgoal_dims = args.subgoal_dims 
     self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims) 
     self.t = torch.ByteTensor(self.maxSize):fill(0)
     self.action_encodings = torch.eye(self.numActions)
@@ -74,7 +74,7 @@ function trans:__init(args)
     self.buf_s2     = torch.ByteTensor(self.bufferSize, s_size):fill(0)
     self.buf_subgoal = torch.zeros(self.bufferSize, self.subgoal_dims)
     self.buf_subgoal2 = torch.zeros(self.bufferSize, self.subgoal_dims)
-    
+
     if self.gpu and self.gpu >= 0 then
         self.gpu_s  = self.buf_s:float():cuda()
         self.gpu_s2 = self.buf_s2:float():cuda()
@@ -115,8 +115,8 @@ function trans:fill_buffer()
         self.buf_s2[buf_ind]:copy(s2)
         self.buf_term[buf_ind] = term
     end
-    self.buf_s  = self.buf_s:float():div(255)
-    self.buf_s2 = self.buf_s2:float():div(255)
+    self.buf_s  = self.buf_s:float()
+    self.buf_s2 = self.buf_s2:float()
     if self.gpu and self.gpu >= 0 then
         self.gpu_s:copy(self.buf_s)
         self.gpu_s2:copy(self.buf_s2)
@@ -270,7 +270,7 @@ end
 function trans:get_recent()
     -- Assumes that the most recent state has been added, but the action has not
     local fullstate, subgoal = self:concatFrames(1,true)
-    return fullstate:float():div(255), subgoal
+    return fullstate:float(), subgoal
 end
 
 
@@ -300,7 +300,7 @@ function trans:add(s, a, r, term, subgoal)
     end
 
     -- Overwrite (s,a,r,t) at insertIndex
-    self.s[self.insertIndex] = s:clone():float():mul(255)
+    self.s[self.insertIndex] = s:clone():float()
     self.a[self.insertIndex] = a
     self.r[self.insertIndex] = r
     self.subgoal[self.insertIndex] = subgoal
@@ -314,7 +314,7 @@ end
 
 
 function trans:add_recent_state(s, term, subgoal)
-    local s = s:clone():float():mul(255):byte()
+    local s = s:clone():float():byte()
     local subgoal = subgoal:clone()
     if #self.recent_s == 0 then
         for i=1,self.recentMemSize do

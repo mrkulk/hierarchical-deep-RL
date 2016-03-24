@@ -85,7 +85,7 @@ function nql:__init(args)
     self.gpu            = args.gpu
 
     self.ncols          = args.ncols or 1  -- number of color channels in input
-    self.input_dims     = args.input_dims or {self.hist_len*self.ncols, 84, 84}
+    self.input_dims     = args.input_dims or {self.hist_len} -- {self.hist_len*self.ncols, 84, 84}
     self.preproc        = args.preproc  -- name of preprocessing network
     self.histType       = args.histType or "linear"  -- history type to use
     self.histSpacing    = args.histSpacing or 1
@@ -121,6 +121,7 @@ function nql:__init(args)
     else
         print('Creating Agent Network from ' .. self.network)
         self.network = err
+        -- print("NETWORK", self.network)
         self.network = self:network()    
     end
 
@@ -182,8 +183,8 @@ function nql:__init(args)
         bufferSize = 512,
         subgoal_dims = args.subgoal_dims
     }
-    self.meta_transitions = dqn.TransitionTable_priority(meta_transition_args)
-    --self.meta_transitions = dqn.TransitionTable(meta_transition_args)
+    -- self.meta_transitions = dqn.TransitionTable_priority(meta_transition_args)
+    self.meta_transitions = dqn.TransitionTable(meta_transition_args)
 
     self.numSteps = 0 -- Number of perceived states.
     self.lastState = nil
@@ -202,19 +203,16 @@ function nql:__init(args)
 
     -- TODO: also save this into file and read
     local meta_args = table_clone(args)
-    meta_args.n_units        = {32, 64, 64}
-    meta_args.filter_size    = {8, 4, 3}
-    meta_args.filter_stride  = {4, 2, 1}
-    meta_args.n_hid          = {512}
+    meta_args.n_hid          = 50
     meta_args.nl             = nn.Rectifier
-    meta_args.n_actions = args.max_objects
+    meta_args.n_actions = 2
     meta_args.input_dims = self.input_dims
     self.meta_args = meta_args
 
     -- create a meta network from scratch if not read in from saved file
     if not self.network_meta then
         print("Creating new Meta Network.....")
-        require 'convnet_atari3'
+        require 'synthetic'
        
         self.network_meta = create_network(meta_args)
     end
@@ -287,14 +285,6 @@ function nql:reset(state)
 end
 
 
-function nql:preprocess(rawstate)
-    if self.preproc then
-        return self.preproc:forward(rawstate:float())
-                    :clone():reshape(self.state_dim)
-    end
-
-    return rawstate
-end
 
 
 function nql:getQUpdate(args, external_r)
@@ -324,7 +314,10 @@ function nql:getQUpdate(args, external_r)
 
     -- Compute max_a Q(s_2, a).
     -- print(s2:size(), subgoals2:size())
-    q2_max = target_q_net:forward({s2, subgoals2:zero()}):float():max(2)
+    s2[torch.le(s2, 0)] = 99
+    subgoals2[torch.le(subgoals2, 0)] = 99
+    -- print("s2", s2:size(),subgoals2:size(), '----------------')  
+    q2_max = target_q_net:forward({nn.SplitTable(2):forward(s2), subgoals2:resize(subgoals2:size(1))}):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
 
@@ -347,7 +340,9 @@ function nql:getQUpdate(args, external_r)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = args.network:forward({s, subgoals:zero()}):float()
+    s[torch.le(s, 0)] = 99
+    subgoals[torch.le(subgoals, 0)] = 99
+    local q_all = args.network:forward({nn.SplitTable(2):forward(s), subgoals:resize(subgoals:size(1))}):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -379,12 +374,6 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
     -- print(r, s:sum(2))
     if external_r then
         r = r[{{},1}] --extract external reward
-        subgoals[{{},{1,self.subgoal_dims}}] = 0
-        subgoals2[{{},{1,self.subgoal_dims}}] = 0
-        if SUBGOAL_SCREEN then
-            -- TODO
-        end
-
     else    
         r = r[{{},2}] --external + intrinsic reward 
     end
@@ -397,7 +386,10 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     -- get new gradient
     -- print(subgoals)
-    network:backward({s, subgoals}, targets)
+    s[torch.le(s, 0)] = 99
+    subgoals[torch.le(subgoals, 0)] = 99
+    -- print(s:size(), subgoals:size(), targets:size())
+    network:backward({nn.SplitTable(2):forward(s), subgoals:resize(subgoals:size(1))}, targets)
 
     -- add weight cost to gradient
     dw:add(-self.wc, w)
@@ -484,36 +476,21 @@ function process_pystr(msg)
     return objlist
 end
 
--- returns a table of num_objects x vectorized object reps
-function nql:get_objects(rawstate)
-    image.save('tmp_' .. ZMQ_PORT .. '.png', rawstate[1])
-    skt:send("")
-    msg = skt:recv()
-    while msg == nil do
-        msg = skt:recv()
-    end
-    local object_list = process_pystr(msg)
-    self.objects = object_list
-    return object_list --nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
-end
 
 function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
-    local objects = self:get_objects(rawstate)
+    local ftrvec = torch.Tensor({0})
+    local state = rawstate:clone()
+    local subgoal_list = {1,6}
 
-    local subg = objects[1] --does not matter 
-    subg = subg * 0
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    ftrvec = torch.cat(subg, ftrvec)
-
-
-   
-    local state = self:preprocess(rawstate):float()
-
+    -- print("XXXXX", state, ftrvec)
+    
     self.meta_transitions:add_recent_state(state, terminal, ftrvec)  
 
     --Store transition s, a, r, s'
 
     if self.metalastState and not testing then
+        -- print(self.metalastState, self.metalastAction, torch.Tensor({metareward, metareward + 0}),
+                        -- self.metalastTerminal, ftrvec, priority)
         self.meta_transitions:add(self.metalastState, self.metalastAction, torch.Tensor({metareward, metareward + 0}),
                         self.metalastTerminal, ftrvec, priority)
         -- if metareward ~=0 then
@@ -544,7 +521,7 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
         self.metanumSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
             self:qLearnMinibatch(self.network_meta, self.target_network_meta, self.meta_transitions,
-             self.dw_meta, self.w_meta, self.g_meta, self.g2_meta, self.tmp_meta, self.deltas_meta, false, self.meta_args.n_actions)
+             self.dw_meta, self.w_meta, self.g_meta, self.g2_meta, self.tmp_meta, self.deltas_meta, true, self.meta_args.n_actions, true)
         end
     end
 
@@ -561,85 +538,53 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local alpha = 0.999
     self.w_meta_target:mul(alpha):add(self.w_meta * (1-alpha))
 
-    -- TODO: depends on number of subgoals
-    if  self.meta_args.n_actions == 6 then
-        indxs = actionIndex + 2 --offset of two for obj id
-    else
-        indxs = actionIndex + 5 --offset of two for obj id
+    local subg = subgoal_list[actionIndex]
+
+    if not terminal then
+        self.subgoal_total[subg] = self.subgoal_total[subg] or 0
+        self.subgoal_total[subg] = self.subgoal_total[subg] + 1
+
+        self.global_subgoal_total[subg] = self.global_subgoal_total[subg] or 0
+        self.global_subgoal_total[subg] = self.global_subgoal_total[subg] + 1
     end
 
-    -- concatenate subgoal with objects (input into network)
-    local subg = objects[indxs]
-
-    self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
-    self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
-
-    self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] or 0
-    self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] + 1
-
-    -- zeroing out discrete objects
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    ftrvec[indxs] = 1
-    ftrvec[#ftrvec] = indxs
 
     -- keep track of subgoal sequences
     if terminal then
         table.insert(self.global_subgoal_seq, self.subgoal_seq)
         self.subgoal_seq = {}
     else
-        table.insert(self.subgoal_seq, indxs)
+        table.insert(self.subgoal_seq, subg)
     end
 
+    -- print("subg", subg)
+
     -- Return subgoal    
-    return torch.cat(subg, ftrvec)
+    return torch.Tensor({subg})
 end
 
-function nql:isGoalReached(subgoal, objects)
-    local agent = objects[1]
-
-    -- IMP: remember that subgoal includes both subgoal and all objects
-    local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
-        print('subgoal reached [OID]: ', subgoal[#subgoal])
-        -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
-        -- print(subgoal, indexTensor)
-        local subg = subgoal[{{1, self.subgoal_dims}}]
-        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
-        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
-        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] or 0
-        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] + 1
-
-        self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] or 0
-        self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] + 1
-
+function nql:isGoalReached(subgoal, rawstate)
+    -- print("rawstate", rawstate[1], subgoal[1])
+    if subgoal[1] == rawstate[1] then
+        -- print("rawstate", rawstate[1], subgoal[1])
+        self.subgoal_success[subgoal[1]] = (self.subgoal_success[subgoal[1]] or 0) + 1
         return true
     else
         return false
     end
 end
 
-function nql:intrinsic_reward(subgoal, objects)
-    -- return reward based on distance or 0/1 towards sub-goal
-    local agent = objects[1]
+function nql:intrinsic_reward(subgoal, rawstate)
     local reward
-    -- if self.lastSubgoal then
-    --     print("last subgoal", self.lastSubgoal[{{1,7}}])
-    -- end
-    -- print("current subgoal", subgoal[{{1,7}}])
-    if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
-        local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-        local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
+    -- print("siubgoals", self.lastSubgoal, subgoal)
+    if self.lastSubgoal and self.lastSubgoal[1] == subgoal[1] then
+        local dist1 = math.abs(subgoal[1] - rawstate[1])
+        local dist2 = math.abs(self.lastSubgoal[1] - self.lastState[1])
         reward = dist2 - dist1
     else
         reward = 0
     end
-
-    
-    if not self.use_distance then
-        reward = 0 -- no intrinsic reward except for reaching the subgoal
-    end
-
-    -- print(reward)
+    -- print("intrinsic_reward", reward, subgoal[1], rawstate[1])
     return reward
 end
 
@@ -647,26 +592,18 @@ end
 function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     
-    local state = self:preprocess(rawstate):float()
-    local objects = self:get_objects(rawstate)
+    local state = rawstate:clone()
 
-    if terminal then
-        self.deathPosition = objects[1][{{1,2}}] --just store the x and y coords of the agent
-    end 
+    -- if terminal then
+    --     print(subgoal[1], rawstate[1], terminal)
+    --     io.read()
+    -- end
 
-    local goal_reached = self:isGoalReached(subgoal, objects)
-    local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
-
-    if terminal then
-        -- reward = -200
-        -- print("died")
-        intrinsic_reward = intrinsic_reward - 200
-    end
-
-    -- reward = reward - 0.1 -- penalize for just standing
-    intrinsic_reward = intrinsic_reward - 0.1
+    local goal_reached = self:isGoalReached(subgoal, state)
+    local intrinsic_reward = self:intrinsic_reward(subgoal, state)
 
     if goal_reached then
+        -- print("GOAL reached")
         intrinsic_reward = intrinsic_reward + 50
     end
 
@@ -681,6 +618,10 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if self.rescale_r then
         self.r_max = math.max(self.r_max, reward)
     end
+
+    intrinsic_reward = intrinsic_reward - 0.01 -- step penalty
+
+    -- print("intrinsic_reward", intrinsic_reward)
 
     self.transitions:add_recent_state(state, terminal, subgoal)  
 
@@ -724,7 +665,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
             self:qLearnMinibatch(self.network, self.target_network, self.transitions,
-                self.dw, self.w, self.g, self.g2, self.tmp, self.deltas, false, self.n_actions)
+                self.dw, self.w, self.g, self.g2, self.tmp, self.deltas, false, self.n_actions, false)
 
             -- TODO: learning for Real network
             -- self:qLearnMinibatch(self.network_real,  self.target_network_real, self.dw_real, self.w_real, self.g_real, self.g2_real, self.tmp_real, self.deltas_real, true) 
@@ -743,28 +684,10 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end
 
     if not terminal then
-        -- print("Getting subgoal")
         self.lastSubgoal = subgoal
-        -- print("lastsubgoal", self.lastSubgoal)
-        --check if the game is still in the stages right after the agent dies
-        if self.deathPosition then
-            currentPosition = objects[1][{{1,2}}]
-            -- print("Positions:", currentPosition, self.deathPosition)
-            if math.sqrt((currentPosition[1]-self.deathPosition[1])^2 + (currentPosition[2]-self.deathPosition[2])^2) < self.DEATH_THRESHOLD then
-                self.lastSubgoal = nil
-                -- print("death overruling")
-            else
-                -- print("Removing death position", self.deathPosition)
-                self.deathPosition = nil
-                self.ignoreState = 1
-            end
-        end
     else
-        -- print("LAST SUBGOAL is now NIL")
-        -- self.lastSubgoal = nil
+        self.lastSubgoal = nil
     end
-
-    self.lastobjects = objects
 
     -- target q copy
     if false then -- deprecated
@@ -777,6 +700,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self.w_target:mul(0.999):add(self.w * (1-alpha))
         -- self.w_real_target:mul(0.999):add(self.w_real * (1-alpha))
     end
+
+    -- print("Reward", reward, intrinsic_reward)
 
     if not terminal then
         return actionIndex, goal_reached, reward, reward+intrinsic_reward, qfunc
@@ -797,10 +722,6 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - learn_start))/self.ep_endt))
    
-    local subgoal_id = subgoal[#subgoal]
-    if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
-        self.ep = 0.1
-    end
 
     local n_actions = nil
     if mode == 'meta' then
@@ -813,14 +734,18 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
     if torch.uniform() < self.ep then
         if mode == 'meta' then
             local chosen_act = torch.random(1,n_actions)
-            while chosen_act == lastsubgoal do
-                chosen_act = torch.random(1,n_actions)
-            end
+            -- while chosen_act == lastsubgoal do
+            --     chosen_act = torch.random(1,n_actions)
+            -- end
             return chosen_act
         else
             return torch.random(1, n_actions)
         end
     else
+        -- if mode == 'meta' then
+        --     print("inputs to dqn", state, subgoal[1], lastsubgoal)
+        --     io.read()
+        -- end
         return self:greedy(network, n_actions, state, subgoal, lastsubgoal)
     end
 end
@@ -828,16 +753,17 @@ end
 
 function nql:greedy(network, n_actions,  state, subgoal, lastsubgoal)
     -- Turn single state into minibatch.  Needed for convolutional nets.
-    if state:dim() == 2 then
-        assert(false, 'Input must be at least 3D')
-        state = state:resize(1, state:size(1), state:size(2))
-    end
-    subgoal = torch.reshape(subgoal, 1, self.subgoal_dims*9)
+    -- if state:dim() == 2 then
+    --     assert(false, 'Input must be at least 3D')
+    --     state = state:resize(1, state:size(1), state:size(2))
+    -- end
     if self.gpu >= 0 then
         state = state:cuda()
         subgoal = subgoal:cuda()
     end
-    local q = network:forward({state, subgoal:zero()}):float():squeeze()
+    state[torch.le(state, 0)] = 99
+    subgoal[torch.le(subgoal, 0)] = 99
+    local q = network:forward({nn.SplitTable(2):forward(state), subgoal:resize(subgoal:size(1))}):float():squeeze()
     local maxq = q[1]
     local besta = { 1 }
 
@@ -864,20 +790,6 @@ function nql:greedy(network, n_actions,  state, subgoal, lastsubgoal)
 end
 
 
-function nql:createNetwork()
-    local n_hid = 128
-    local mlp = nn.Sequential()
-    mlp:add(nn.Reshape(self.hist_len*self.ncols*self.state_dim))
-    mlp:add(nn.Linear(self.hist_len*self.ncols*self.state_dim, n_hid))
-    mlp:add(nn.Rectifier())
-    mlp:add(nn.Linear(n_hid, n_hid))
-    mlp:add(nn.Rectifier())
-    mlp:add(nn.Linear(n_hid, self.n_actions))
-
-    return mlp
-end
-
-
 function nql:report(filename)
     print("Subgoal Network\n---------------------")
     print(get_weight_norms(self.network))
@@ -890,9 +802,9 @@ function nql:report(filename)
     -- print stats on subgoal success rates
     for subg, val in pairs(self.subgoal_total) do
         if self.subgoal_success[subg] then 
-            print("Subgoal ID (8-key, 6/7-bottom ladders):" , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
+            print("Subgoal ID :" , subg , ' : ',  self.subgoal_success[subg]/val, self.subgoal_success[subg] .. '/' .. val)
         else
-            print("Subgoal ID (8-key, 6/7-bottom ladders):" , subg ,  ' : ')
+            print("Subgoal ID :" , subg ,  ' : ')
         end
     end
 

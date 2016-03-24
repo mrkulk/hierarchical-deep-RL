@@ -8,7 +8,7 @@ from rlglue.types import Action
 from rlglue.types import Observation
 
 from random import Random
-import zmq, argparse
+import zmq
 import numpy as np
 
 
@@ -22,7 +22,9 @@ def sendMsg(state, reward, terminal):
     else:
         terminal = 'false'
     outMsg = 'state, reward, terminal = ' + str(state) + ',' + str(reward)+','+terminal
+    # print "DQN out:", outMsg
     socket.send(outMsg.replace('[', '{').replace(']', '}'))
+    # print "Done sending"
     
 
 class skeleton_agent(Agent):
@@ -36,10 +38,13 @@ class skeleton_agent(Agent):
         self.lastObservation=Observation()
 
     def agent_start(self,observation):
+        # print "Calling start"
+        dummy_msg = socket.recv()  #since zmq server-client pattern expects server to receive before sending
+        assert dummy_msg == 'dummy'
         #Generate random action, 0 or 1
         # thisIntAction=self.randGenerator.randint(0,1)
-        # returnAction=Action()
-        # returnAction.intArray=[thisIntAction]
+        
+        
 
         # lastAction=copy.deepcopy(returnAction)
         # lastObservation=copy.deepcopy(observation)
@@ -51,7 +56,10 @@ class skeleton_agent(Agent):
         terminal = False
 
         sendMsg(state, reward, terminal)
-        returnAction = int(socket.recv())
+
+        # print "Waiting to receive...."
+        returnAction=Action()
+        returnAction.intArray=[int(socket.recv())]
 
         self.lastObservation = copy.deepcopy(observation)
 
@@ -59,25 +67,34 @@ class skeleton_agent(Agent):
         return returnAction
 
     def agent_step(self,reward, observation):
+
+        # print "Calling step"
      
         state = np.array(list(observation.intArray))
         reward = reward
         terminal = False
 
         sendMsg(state, reward, terminal)
-        returnAction = int(socket.recv())
+        # print "Waiting to receive...."
+        returnAction=Action()
+        returnAction.intArray=[int(socket.recv())]
+        # print "--------------------------- DQN received action:", returnAction
 
         self.lastObservation = copy.deepcopy(observation)
-
+        # print "lastobs", self.lastObservation.intArray
 
         return returnAction
 
 
     def agent_end(self,reward):
         state = np.array(list(self.lastObservation.intArray))
+        if state[0] == 2: 
+            state[0] = 1
+        elif state[0] == 5: 
+            state[0] = 6
         reward = reward
         terminal = True
-
+        # print "Calling end function", state, reward, terminal
         sendMsg(state, reward, terminal)
         pass
 
@@ -93,18 +110,11 @@ class skeleton_agent(Agent):
 
 if __name__=="__main__":
 
-    argparser = argparse.ArgumentParser(sys.argv[0])
-    argparser.add_argument("--port",
-        type = int,
-        default = 5050,
-        help = "port for server")
-
-    args = argparser.parse_args()
+    port = int(sys.argv[1])
 
     #-------------------------------------------------
 
     #server setup
-    port = args.port
     context = zmq.Context()
     socket = context.socket(zmq.REP)
     socket.bind("tcp://*:%s" % port)

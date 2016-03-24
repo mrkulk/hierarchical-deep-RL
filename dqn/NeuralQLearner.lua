@@ -400,46 +400,9 @@ function process_pystr(msg)
     return objlist
 end
 
--- returns a table of num_objects x vectorized object reps
-function nql:get_objects(rawstate)
-    image.save('tmp_' .. ZMQ_PORT .. '.png', rawstate[1])
-    skt:send("")
-    msg = skt:recv()
-    while msg == nil do
-        msg = skt:recv()
-    end
-    local object_list = process_pystr(msg)
-    self.objects = object_list
-    return object_list --nn.SplitTable(1):forward(torch.rand(4, self.subgoal_dims))  
-end
-
 function nql:pick_subgoal(rawstate, oid)
-    local objects = self:get_objects(rawstate)
-    local indxs = oid or torch.random(3, #objects) -- first is the agent
-    while objects[indxs]:sum() == 0 do -- object absent
-        indxs = torch.random(3, #objects) -- first is the agent
-    end
-    
-    -- concatenate subgoal with objects (input into network)
-    local subg = objects[indxs]
-    -- local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    -- for i = 1,#objects do
-    --     ftrvec[{{(i-1)*self.subgoal_dims + 1, i*self.subgoal_dims}}] = objects[i]
-    -- end
-
-    -- add stats
-    -- self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] or 0
-    -- self.subgoal_total[subg:sum()] = self.subgoal_total[subg:sum()] + 1
-    self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
-    self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
-
-    -- zeroing out discrete objects
-    -- ftrvec:zero()
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    ftrvec[indxs] = 1
-    ftrvec[#ftrvec] = indxs
-
-    return torch.cat(subg, ftrvec)
+    local indxs = torch.random(2) -- first is the agent
+    return indxs
 end
 
 function nql:isGoalReached(subgoal, objects)

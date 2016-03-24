@@ -13,6 +13,8 @@ require 'image'
 require 'Scale'
 require 'game_env'
 
+unpack = unpack or table.unpack
+
 if META_AGENT  then
     require 'MetaNeuralQLearner'
 else
@@ -134,9 +136,6 @@ function setup(_opt)
     local opt = torchSetup(_opt)
 
     -- load training framework and environment
-    local framework = require(opt.framework)
-    assert(framework)
-
     local gameEnv = GameEnv(opt)
     -- local gameEnv = framework.GameEnvironment(opt)
     local gameActions = gameEnv:getActions()
