@@ -69,10 +69,10 @@ class skeleton_environment(Environment):
         if self.currentState <= 1:
             self.currentState=1
             if not self.met_subgoal:
-                theReward= 10
+                theReward= 1/100
                 episodeOver=1
             else:
-                theReward= 100
+                theReward= 1
                 episodeOver=1
 
         if self.currentState >= 6:
