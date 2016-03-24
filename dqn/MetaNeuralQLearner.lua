@@ -205,7 +205,7 @@ function nql:__init(args)
     local meta_args = table_clone(args)
     meta_args.n_hid          = 50
     meta_args.nl             = nn.Rectifier
-    meta_args.n_actions = 2
+    meta_args.n_actions = 5
     meta_args.input_dims = self.input_dims
     self.meta_args = meta_args
 
@@ -480,7 +480,7 @@ end
 function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local ftrvec = torch.Tensor({0})
     local state = rawstate:clone()
-    local subgoal_list = {1,6}
+    local subgoal_list = {1,3,4,5,6}
 
     -- print("XXXXX", state, ftrvec)
     
@@ -602,7 +602,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     if self.use_distance then
         intrinsic_reward = self:intrinsic_reward(subgoal, state)
     end
-    
+
     if goal_reached then
         -- print("GOAL reached")
         intrinsic_reward = intrinsic_reward + 50
@@ -735,9 +735,9 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
     if torch.uniform() < self.ep then
         if mode == 'meta' then
             local chosen_act = torch.random(1,n_actions)
-            -- while chosen_act == lastsubgoal do
-            --     chosen_act = torch.random(1,n_actions)
-            -- end
+            while chosen_act == lastsubgoal do
+                chosen_act = torch.random(1,n_actions)
+            end
             return chosen_act
         else
             return torch.random(1, n_actions)
