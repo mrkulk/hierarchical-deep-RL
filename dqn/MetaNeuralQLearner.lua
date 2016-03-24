@@ -570,11 +570,13 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     -- concatenate subgoal with objects (input into network)
     local subg = objects[indxs]
 
-    self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
-    self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
+    if not terminal then
+        self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
+        self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
 
-    self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] or 0
-    self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] + 1
+        self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] or 0
+        self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] + 1
+    end
 
     -- zeroing out discrete objects
     local ftrvec = torch.zeros(#objects*self.subgoal_dims)
