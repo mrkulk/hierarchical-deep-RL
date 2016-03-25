@@ -804,7 +804,8 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
     --end
     if mode ~='meta' then
 	if self.subgoal_total[subgoal_id] then
-    		self.ep = 1 - min(0.9,self.subgoal_success[subgoal_id]/self.subgoal_total[subgoal_id])
+	  self.subgoal_success[subgoal_id] = self.subgoal_success[subgoal_id] or 0
+	  self.ep = 1 - min(0.9,self.subgoal_success[subgoal_id]/self.subgoal_total[subgoal_id])
     	end
     end
 
