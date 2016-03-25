@@ -799,8 +799,13 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
                 math.max(0, self.numSteps - learn_start))/self.ep_endt))
    
     local subgoal_id = subgoal[#subgoal]
-    if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
-        self.ep = 0.1
+    --if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
+    --    self.ep = 0.1
+    --end
+    if mode ~='meta' then
+	if self.subgoal_total[subgoal_id] then
+    		self.ep = 1 - min(0.9,self.subgoal_success[subgoal_id]/self.subgoal_total[subgoal_id])
+    	end
     end
 
     local n_actions = nil

@@ -8,47 +8,41 @@ if not os.path.exists("slurm_scripts"):
 
 jobs = [
     {
-        'eps_endt': 200000,
+        'eps_endt': 1000000,
         'lr': 0.00025,
-        'port': 9000,
+        'port': 8000,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 200000,
+        'eps_endt': 1000000,
         'lr': 0.00025,
-        'port': 9001,
+        'port': 8001,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 200000,
+        'eps_endt': 1000000,
         'lr': 0.00025,
-        'port': 9002,
+        'port': 8002,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 200000,
+        'eps_endt': 1000000,
         'lr': 0.00025,
-        'port': 9003,
+        'port': 8003,
         'use_distance': 'true'
     },
     {
-        'eps_endt': 200000,
+        'eps_endt': 1000000,
         'lr': 0.00025,
-        'port': 9004,
-        'use_distance': 'true'
-    },
-    {
-        'eps_endt': 200000,
-        'lr': 0.00025,
-        'port': 9005,
+        'port': 8004,
         'use_distance': 'true'
     },
 ]
 
 for job in jobs:
-    jobname = "metanet_"
+    jobname = "scratch_metanet_"
     savedir_prefix = "saved_networks/"
-    exp_name = 'lower=200k_meta=50k_eps_endt=' + str(job['eps_endt']) + "_lr=" + str(job['lr']) + '_port=' + str(job['port']) + '_usedist=' + str(job['use_distance'])
+    exp_name = 'scratch_lower=200k_meta=50k_eps_endt=' + str(job['eps_endt']) + "_lr=" + str(job['lr']) + '_port=' + str(job['port']) + '_usedist=' + str(job['use_distance'])
     flagstring = "./run_exp.sh " + exp_name + " " + str(job['port']) + " 12 " + str(job['use_distance']) + " " + str(job['eps_endt']) + " " + str(job['lr'])
     print(flagstring)
     jobname = jobname + exp_name
