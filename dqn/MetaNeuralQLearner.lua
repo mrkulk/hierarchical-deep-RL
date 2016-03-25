@@ -24,6 +24,10 @@ function nql:__init(args)
 
     self.subgoal_dims = args.subgoal_dims
     self.subgoal_nhid = args.subgoal_nhid
+    self.dqn = args.dqn  --specify whether to run vanilla DQN
+    if self.dqn then
+        print("RUNNING VANILLA DQN")
+    end
 
     -- run subgoal specific experiments
     self.use_distance = args.use_distance -- if we want to use the distance as the reward
@@ -558,8 +562,11 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     end
 
     -- Return subgoal    
-    return torch.Tensor({subg}) --for hierarchical
-    -- return torch.Tensor({1}) -- for basic DQN
+    if self.dqn then
+        return torch.Tensor({1}) -- for basic DQN
+    else
+        return torch.Tensor({subg}) --for hierarchical
+    end
 end
 
 function nql:isGoalReached(subgoal, rawstate)
@@ -627,7 +634,9 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     -- print("intrinsic_reward", intrinsic_reward)
 
-    -- intrinsic_reward = 0 -- for basic DQN
+    if self.dqn then
+        intrinsic_reward = 0 -- for basic DQN
+    end
 
     self.transitions:add_recent_state(state, terminal, subgoal)  
 
