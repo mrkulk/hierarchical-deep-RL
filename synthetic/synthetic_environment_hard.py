@@ -47,7 +47,7 @@ class skeleton_environment(Environment):
         self.met_subgoal = False
         returnObs=Observation()
         returnObs.intArray=[self.currentState]
-
+        self.path_list = [str(self.currentState)]
         return returnObs
 
     def env_step(self,thisAction):
@@ -80,6 +80,12 @@ class skeleton_environment(Environment):
             self.met_subgoal = True
             #theReward=1.
             #episodeOver=1
+
+        self.path_list.append(str(self.currentState))
+        if episodeOver == 1:
+            tempfile = open('results_synth_paths.txt', 'ab')
+            tempfile.write(''.join(self.path_list))
+            tempfile.write('\n')
 
         theObs=Observation()
         theObs.intArray=[self.currentState]
