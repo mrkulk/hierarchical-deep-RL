@@ -6,7 +6,7 @@ total_goals = 6
 
 -- src = 'logs/golden'
 -- src = 'logs/logs'
-src = 'logs/latest/'
+src = 'logs/final/'
 
 runs = paths.dir(src)
 print(runs)
@@ -38,9 +38,11 @@ local myFile = hdf5.open('stats.h5', 'w')
 
 local function get_stats(dirs)
   local subgoal_hitrate = {} -- total of six subgoals
+  local subgoal_chosen_meta = {}
   local subgoal_itr = {}
   for i=1,total_goals do
       subgoal_hitrate[i] = {}
+      subgoal_chosen_meta[i] = {}
       subgoal_itr[i] = {}
   end
   for f in paths.files(dirs) do
@@ -53,6 +55,7 @@ local function get_stats(dirs)
           for i =1,total_goals do 
               if subg_total[i+2] and subg_success[i+2] then --offset since subgoal id starts with 3
                   subgoal_hitrate[i][#subgoal_hitrate[i]+1] = subg_success[i+2]/subg_total[i+2]
+                  subgoal_chosen_meta[i][#subgoal_chosen_meta[i]+1] = subg_total[i+2]
                   subgoal_itr[i][#subgoal_itr[i]+1] = itr
               end
           end
@@ -62,24 +65,26 @@ local function get_stats(dirs)
   for i=1,total_goals do 
     subgoal_itr[i] = torch.Tensor(subgoal_itr[i])
     subgoal_hitrate[i] = torch.Tensor(subgoal_hitrate[i])
+    subgoal_chosen_meta[i] = torch.Tensor(subgoal_chosen_meta[i])
   end
-  return subgoal_hitrate, subgoal_itr
+  return subgoal_hitrate, subgoal_itr, subgoal_chosen_meta
 end
 
 
 for cnt = 1,#runs-2 do
   expid = cnt+2 --offset due to dir listing
   hirate = nil; itrs = nil
-  hitrate, itrs = get_stats('logs/latest/'..runs[expid])
+  hitrate, itrs, chosen_meta = get_stats('logs/latest/'..runs[expid])
   for i=1,total_goals do
     myFile:write('run' .. cnt .. '_subgoal_hitrate_gid_' .. i, hitrate[i])
     myFile:write('run' .. cnt .. '_subgoal_itr_gid_' .. i, itrs[i])
+    myFile:write('run' .. cnt .. '_subgoal_total_gid_' .. i, chosen_meta[i])
   end
 end
 
 hitrate = nil
 itrs = nil
-hitrate, itrs = get_stats('logs/golden/')
+hitrate, itrs,_ = get_stats('logs/golden/')
 for i=1,total_goals do
   myFile:write('pretrain_subgoal_hitrate_gid_' .. i, hitrate[i])
   myFile:write('pretrain_subgoal_itr_gid_' .. i, itrs[i])
