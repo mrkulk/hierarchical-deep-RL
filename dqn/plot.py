@@ -15,12 +15,12 @@ from numpy import linalg as LA
 
 total_goals = 6
 
-def get_layout(xtitle='Steps', ytitle='Average Fitness'):
+def get_layout(xtitle='Steps', ytitle='Average Extrinsic Reward'):
 
 	layout = Layout(
 		legend=dict(
-		        # x=0.84,
-		        # y=1,
+		        x=0.74,
+		        y=0.1,
 				font=dict(
 		            family='sans-serif',
 		            size=40,
@@ -37,7 +37,7 @@ def get_layout(xtitle='Steps', ytitle='Average Fitness'):
 	    		size=40,
 			),
 			tickfont=dict(
-				size=40
+				size=20
 			),
 	        gridcolor='rgb(255,255,255)',
 	        # range=[1,10],
@@ -49,14 +49,14 @@ def get_layout(xtitle='Steps', ytitle='Average Fitness'):
 	        zeroline=False
 	    ),
 	    yaxis=YAxis(
-			x=0.84,
-			y=1,
+			# x=0.84,
+			# y=1,
 	    	title=ytitle,
 	    	titlefont=dict(
 	    		size=40,
 			),
 			tickfont=dict(
-				size=40
+				size=20
 			),
 			# range=[0,1],
 	        gridcolor='rgb(255,255,255)',
@@ -102,6 +102,7 @@ def get_reward_plot_realexp():
 
 	x_rev = x[::-1]
 
+	y_base = list(y*0)
 	x=list(x);x_rev=list(x_rev);y=list(y);y_lower=list(y_lower);y_upper=list(y_upper)
 
 	trace1 = Scatter(
@@ -110,7 +111,7 @@ def get_reward_plot_realexp():
 	    fill='tozerox',
 	    fillcolor='rgba(0,176,246,0.2)',
 	    line=Line(color='transparent'),
-	    # name='Premium',
+	    name='Our Approach',
 	    showlegend=False,
 	)
 
@@ -119,10 +120,19 @@ def get_reward_plot_realexp():
 	    y=y,
 	    line=Line(color='rgb(0,176,246)'),
 	    mode='lines',
-	    # name='Premium',
+	    name='Our Approach',
 	)
 
-	data = Data([trace1, trace2])
+	trace3 = Scatter(
+	    x=x,
+	    y=y_base,
+	    line=Line(color='rgb(255,0,0)'),
+	    mode='lines',
+	    name='DQN',
+	)
+
+
+	data = Data([trace1, trace2, trace3])
 	fig = Figure(data=data, layout=get_layout())
 	plotly.offline.plot(fig, filename='Reward')
 
@@ -443,7 +453,7 @@ def get_plots_realexp_avgsubgoals():
 
 
 get_reward_plot_realexp()
-get_plots_realexp_subgoals(6)
-get_plots_realexp_avgsubgoals()
+# get_plots_realexp_subgoals(6)
+# get_plots_realexp_avgsubgoals()
 
 
