@@ -54,7 +54,7 @@ function trans:__init(args)
     self.s = torch.ByteTensor(self.maxSize, self.stateDim):fill(0)
     self.a = torch.LongTensor(self.maxSize):fill(0)
     self.r = torch.zeros(self.maxSize,2)
-    self.subgoal_dims = args.subgoal_dims*9 --TODO (total number of objects)
+    self.subgoal_dims = 1 -- storing only a scalar
     self.subgoal = torch.zeros(self.maxSize, self.subgoal_dims) 
     self.t = torch.ByteTensor(self.maxSize):fill(0)
     self.action_encodings = torch.eye(self.numActions)

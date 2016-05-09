@@ -37,7 +37,7 @@ function nql:__init(args)
 
     self.subgoal_seq = {}
     self.global_subgoal_seq = {}
-
+    self.total_subgoals = args.total_subgoals
 
     -- to keep track of dying position
     self.deathPosition = nil
@@ -85,7 +85,7 @@ function nql:__init(args)
     self.gpu            = args.gpu
 
     self.ncols          = args.ncols or 1  -- number of color channels in input
-    self.input_dims     = args.input_dims or {self.hist_len*self.ncols, 84, 84}
+    self.input_dims     = args.input_dims or { (self.hist_len+1)*self.ncols, 84, 84} -- +1 for goal
     self.preproc        = args.preproc  -- name of preprocessing network
     self.histType       = args.histType or "linear"  -- history type to use
     self.histSpacing    = args.histSpacing or 1
@@ -263,6 +263,13 @@ function nql:__init(args)
         self.w_meta_target, self.dw_meta_target = self.target_network_meta:getParameters()
     end
 
+    -- load expert images
+    self.expert_data = {}
+    for i=1,self.total_subgoals do
+        self.expert_data[i] = image.load('expert/' .. i .. '.png')
+        self.expert_data[i] = self:preprocess(self.expert_data[i]):float()
+        self.expert_data[i]:resize(1, unpack(self.input_dims))
+    end
 end
 
 
@@ -324,7 +331,7 @@ function nql:getQUpdate(args, external_r)
 
     -- Compute max_a Q(s_2, a).
     -- print(s2:size(), subgoals2:size())
-    q2_max = target_q_net:forward({s2, subgoals2:zero()}):float():max(2)
+    q2_max = target_q_net:forward(s2):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
 
@@ -347,7 +354,7 @@ function nql:getQUpdate(args, external_r)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = args.network:forward({s, subgoals:zero()}):float()
+    local q_all = args.network:forward(s):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -397,7 +404,7 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     -- get new gradient
     -- print(subgoals)
-    network:backward({s, subgoals}, targets)
+    network:backward(s, targets)
 
     -- add weight cost to gradient
     dw:add(-self.wc, w)
@@ -505,7 +512,6 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     ftrvec = torch.cat(subg, ftrvec)
 
 
-   
     local state = self:preprocess(rawstate):float()
 
     self.meta_transitions:add_recent_state(state, terminal, ftrvec)  
@@ -560,59 +566,78 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local alpha = 0.999
     self.w_meta_target:mul(alpha):add(self.w_meta * (1-alpha))
 
-    -- TODO: depends on number of subgoals
-    if  self.meta_args.n_actions == 6 then
-        indxs = actionIndex + 2 --offset of two for obj id
-    else
-        indxs = actionIndex + 5 --offset of two for obj id
-    end
+    -- -- TODO: depends on number of subgoals
+    -- if  self.meta_args.n_actions == 6 then
+    --     indxs = actionIndex + 2 --offset of two for obj id
+    -- else
+    --     indxs = actionIndex + 5 --offset of two for obj id
+    -- end
 
     -- concatenate subgoal with objects (input into network)
-    local subg = objects[indxs]
+    -- local subg = objects[indxs]
 
     if not terminal then
-        self.subgoal_total[indxs] = self.subgoal_total[indxs] or 0
-        self.subgoal_total[indxs] = self.subgoal_total[indxs] + 1
+        self.subgoal_total[actionIndex] = self.subgoal_total[actionIndex] or 0
+        self.subgoal_total[actionIndex] = self.subgoal_total[actionIndex] + 1
 
-        self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] or 0
-        self.global_subgoal_total[indxs] = self.global_subgoal_total[indxs] + 1
+        self.global_subgoal_total[actionIndex] = self.global_subgoal_total[actionIndex] or 0
+        self.global_subgoal_total[actionIndex] = self.global_subgoal_total[actionIndex] + 1
     end
 
-    -- zeroing out discrete objects
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    ftrvec[indxs] = 1
-    ftrvec[#ftrvec] = indxs
+    -- -- zeroing out discrete objects
+    -- local ftrvec = torch.zeros(#objects*self.subgoal_dims)
+    -- ftrvec[indxs] = 1
+    -- ftrvec[#ftrvec] = indxs
 
     -- keep track of subgoal sequences
     if terminal then
         table.insert(self.global_subgoal_seq, self.subgoal_seq)
         self.subgoal_seq = {}
     else
-        table.insert(self.subgoal_seq, indxs)
+        table.insert(self.subgoal_seq, actionIndex)
     end
 
     -- Return subgoal    
-    return torch.cat(subg, ftrvec)
+    return actionIndex -- torch.cat(subg, ftrvec)
 end
 
-function nql:isGoalReached(subgoal, objects)
-    local agent = objects[1]
+function nql:isGoalReached(subgoal, state)
+    -- local agent = objects[1]
 
-    -- IMP: remember that subgoal includes both subgoal and all objects
-    local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
-        print('subgoal reached [OID]: ', subgoal[#subgoal])
-        -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
-        -- print(subgoal, indexTensor)
-        local subg = subgoal[{{1, self.subgoal_dims}}]
-        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
-        -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
-        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] or 0
-        self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] + 1
+    -- -- IMP: remember that subgoal includes both subgoal and all objects
+    -- local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
+    -- if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
+    --     print('subgoal reached [OID]: ', subgoal[#subgoal])
+    --     -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
+    --     -- print(subgoal, indexTensor)
+    --     local subg = subgoal[{{1, self.subgoal_dims}}]
+    --     -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
+    --     -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
+    --     self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] or 0
+    --     self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] + 1
 
-        self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] or 0
-        self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] + 1
+    --     self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] or 0
+    --     self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] + 1
 
+    --     return true
+    -- else
+    --     return false
+    -- end
+
+    local s = state:clone()
+    s:resize(1, unpack(self.input_dims))
+    -- get features of state
+    self.target_network_meta:forward(s)
+    local rawstate_ftrs = self.target_network_meta.modules[2].output:clone()
+
+    --get features of subgoal
+    local subgoal_image = self.expert_data[subgoal]
+    self.target_network_meta:forward(subgoal_image)
+    local subgoal_ftrs = self.target_network_meta.modules[2].output:clone()
+
+    -- print('diff:', (rawstate_ftrs - subgoal_ftrs):norm())
+    -- exit()
+    if (rawstate_ftrs - subgoal_ftrs):norm() < 0.01 then
         return true
     else
         return false
@@ -627,13 +652,13 @@ function nql:intrinsic_reward(subgoal, objects)
     --     print("last subgoal", self.lastSubgoal[{{1,7}}])
     -- end
     -- print("current subgoal", subgoal[{{1,7}}])
-    if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
-        local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-        local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
-        reward = dist2 - dist1
-    else
-        reward = 0
-    end
+    -- if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
+    --     local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
+    --     local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
+    --     reward = dist2 - dist1
+    -- else
+    --     reward = 0
+    -- end
 
     
     if not self.use_distance then
@@ -652,11 +677,12 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     local objects = self:get_objects(rawstate)
 
     if terminal then
+        -- this deathPosition business is hacky as hell but it fixes bug in ALE engine for MZ
         self.deathPosition = objects[1][{{1,2}}] --just store the x and y coords of the agent
     end 
 
-    local goal_reached = self:isGoalReached(subgoal, objects)
-    local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
+    local goal_reached = self:isGoalReached(subgoal,state)
+    local intrinsic_reward = 0 --self:intrinsic_reward(subgoal, objects) - no need for this Euclidean reward
 
     if terminal then
         -- reward = -200
@@ -668,7 +694,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     intrinsic_reward = intrinsic_reward - 0.1
 
     if goal_reached then
-        intrinsic_reward = intrinsic_reward + 50
+        intrinsic_reward = intrinsic_reward + 50  --binary reward for reaching the goal
     end
 
     local curState
@@ -683,7 +709,10 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self.r_max = math.max(self.r_max, reward)
     end
 
-    self.transitions:add_recent_state(state, terminal, subgoal)  
+    local subgoal_vec = torch.ones(1)
+    subgoal_vec[1] = subgoal
+
+    self.transitions:add_recent_state(state, terminal, subgoal_vec)  
 
     --Store transition s, a, r, s'
     if self.lastState and not testing and self.lastSubgoal then
@@ -707,7 +736,8 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         -- self:sample_validation_data()
     end
 
-    curState, subgoal = self.transitions:get_recent()
+    curState, subgoal = self.transitions:get_recent()    
+    -- print(subgoal)
     curState = curState:resize(1, unpack(self.input_dims))
 
     -- Select action
@@ -749,6 +779,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         -- print("lastsubgoal", self.lastSubgoal)
         --check if the game is still in the stages right after the agent dies
         if self.deathPosition then
+            -- this deathPosition business is hacky as hell but it fixes bug in ALE engine for MZ
             currentPosition = objects[1][{{1,2}}]
             -- print("Positions:", currentPosition, self.deathPosition)
             if math.sqrt((currentPosition[1]-self.deathPosition[1])^2 + (currentPosition[2]-self.deathPosition[2])^2) < self.DEATH_THRESHOLD then
@@ -833,12 +864,12 @@ function nql:greedy(network, n_actions,  state, subgoal, lastsubgoal)
         assert(false, 'Input must be at least 3D')
         state = state:resize(1, state:size(1), state:size(2))
     end
-    subgoal = torch.reshape(subgoal, 1, self.subgoal_dims*9)
+    -- subgoal = torch.reshape(subgoal, 1, self.subgoal_dims*9)
     if self.gpu >= 0 then
         state = state:cuda()
-        subgoal = subgoal:cuda()
+        -- subgoal = subgoal:cuda()
     end
-    local q = network:forward({state, subgoal:zero()}):float():squeeze()
+    local q = network:forward(state):float():squeeze()
     local maxq = q[1]
     local besta = { 1 }
 

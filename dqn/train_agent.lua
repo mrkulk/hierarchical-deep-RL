@@ -170,7 +170,7 @@ while step < opt.steps do
     subgoal_screen = screen:clone() -- only do overlay on subgoal screen
 
     if opt.subgoal_screen then
-        subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+        -- subgoal_screen[{1,{}, {30+subgoal[1]-5, 30+subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
         if opt.display_game then win = image.display({image=subgoal_screen, win=win}) end
     end
 
@@ -296,8 +296,8 @@ while step < opt.steps do
     if opt.display_game then
         if not opt.subgoal_screen then
             screen_cropped = screen:clone()
-            screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
-            screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
+            -- screen_cropped = screen_cropped[{{},{},{30,210},{1,160}}]
+            -- screen_cropped[{1,{}, {subgoal[1]-5, subgoal[1]+5}, {subgoal[2]-5,subgoal[2]+5} }] = 1
             win = image.display({image=screen_cropped, win=win})
         end
     end
