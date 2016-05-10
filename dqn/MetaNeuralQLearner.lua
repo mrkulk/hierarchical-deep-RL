@@ -174,7 +174,7 @@ function nql:__init(args)
 
     --- meta table
     local meta_transition_args = {
-        stateDim = self.state_dim, numActions = args.max_objects,
+        stateDim = self.state_dim, numActions = args.total_subgoals,
         histLen = self.hist_len, gpu = self.gpu,
         maxSize = 50000, --self.replay_memory, 
         histType = self.histType,
@@ -207,7 +207,7 @@ function nql:__init(args)
     meta_args.filter_stride  = {4, 2, 1}
     meta_args.n_hid          = {512}
     meta_args.nl             = nn.Rectifier
-    meta_args.n_actions = args.max_objects
+    meta_args.n_actions = args.total_subgoals
     meta_args.input_dims = self.input_dims
     self.meta_args = meta_args
 
@@ -218,28 +218,6 @@ function nql:__init(args)
        
         self.network_meta = create_network(meta_args)
     end
-
-    -- copy the lower level weights from lower network
-    --print(self.network.modules)
-    --for i=1, #self.network.modules-1 do
-    --   print(self.network.modules[i])
-    --    if i==1 then
-    --        for j=1, #self.network.modules[1].modules do
-    --        if self.network.modules[1].modules[j].bias then
-    --           self.network_meta.modules[1].modules[j].bias = self.network.modules[1].modules[j].bias:clone()
-    --        end
-    --        if self.network.modules[1].modules[j].weights then
-    --            self.network_meta.modules[1].modules[j].weights = self.network.modules[1].modules[j].weights:clone()
-    --        end
-    --        end
-    --    end
-    --    if self.network.modules[i].bias then 
-    --        self.network_meta.modules[i].bias = self.network.modules[i].bias:clone()
-    --    end
-    --    if self.network.modules[i].weights then 
-    --    self.network_meta.modules[i].weights = self.network.modules[i].weights:clone()
-    --    end
-    --end
 
     self.w, self.dw = self.network:getParameters()
     self.dw:zero()
@@ -264,12 +242,21 @@ function nql:__init(args)
     end
 
     -- load expert images
-    self.expert_data = {}
+    self.expert_data = torch.zeros(self.total_subgoals, unpack(self.input_dims))
+    self.expert_data_raw = torch.zeros(self.total_subgoals, 1, 1, self.input_dims[2], self.input_dims[3])
     for i=1,self.total_subgoals do
-        self.expert_data[i] = image.load('expert/' .. i .. '.png')
-        self.expert_data[i] = self:preprocess(self.expert_data[i]):float()
-        self.expert_data[i]:resize(1, unpack(self.input_dims))
+        expert_data = image.load('expert/' .. i .. '.png')
+        expert_data = self:preprocess(expert_data):float()
+        expert_data:resize(1, 1, self.input_dims[2], self.input_dims[3])
+        self.expert_data_raw[i] = expert_data:clone()
+        self.expert_data[i] = torch.cat(expert_data, torch.zeros(1, self.input_dims[1]-1, self.input_dims[2],self.input_dims[3]),2)
+        if self.gpu>=0 then 
+            self.expert_data=self.expert_data:cuda()
+            -- self.expert_data_raw=self.expert_data_raw:cuda()
+        end
     end
+    -- self.expert_data = torch.Tensor(self.expert_data)
+    -- self.expert_data_raw = torch.Tensor(self.expert_data_raw)
 end
 
 
@@ -383,6 +370,38 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
     assert(tran_table:size() > self.minibatch_size)
 
     local s, a, r, s2, term, subgoals, subgoals2 = tran_table:sample(self.minibatch_size)
+    subgoals = subgoals:reshape(subgoals:size(1))
+    subgoals2 = subgoals2:reshape(subgoals2:size(1))
+
+    expert_frames = self.expert_data_raw:index(1, subgoals:long())
+    expert_frames2 = self.expert_data_raw:index(1, subgoals2:long())
+    expert_frames = torch.squeeze(expert_frames, 2)
+    expert_frames2  = torch.squeeze(expert_frames2, 2)
+    if self.gpu >=0 then
+        expert_frames = expert_frames:cuda()
+        expert_frames2 = expert_frames2:cuda()
+    end
+    -- print(expert_frames:size())
+
+    if metaFlag then        
+        expert_frames:zero()
+        expert_frames2:zero()
+
+        s:resize(self.minibatch_size, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
+        s2:resize(self.minibatch_size, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
+        
+        s = torch.cat(s, expert_frames, 2)
+        s2 = torch.cat(s2, expert_frames, 2)
+
+    else
+        s:resize(self.minibatch_size, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
+        s2:resize(self.minibatch_size, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
+        
+        s = torch.cat(s, expert_frames, 2)
+        s2 = torch.cat(s2, expert_frames, 2)
+
+    end
+
     -- print(r, s:sum(2))
     if external_r then
         r = r[{{},1}] --extract external reward
@@ -504,23 +523,18 @@ function nql:get_objects(rawstate)
 end
 
 function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
+    if false then
     local objects = self:get_objects(rawstate)
-
-    local subg = objects[1] --does not matter 
-    subg = subg * 0
-    local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    ftrvec = torch.cat(subg, ftrvec)
-
 
     local state = self:preprocess(rawstate):float()
 
-    self.meta_transitions:add_recent_state(state, terminal, ftrvec)  
+    self.meta_transitions:add_recent_state(state, terminal, torch.Tensor({0}))  
 
     --Store transition s, a, r, s'
 
     if self.metalastState and not testing then
         self.meta_transitions:add(self.metalastState, self.metalastAction, torch.Tensor({metareward, metareward + 0}),
-                        self.metalastTerminal, ftrvec, priority)
+                        self.metalastTerminal, torch.Tensor({0}), priority)
         -- if metareward ~=0 then
         --     print("Metareward", metareward)
         -- end
@@ -534,13 +548,8 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local actionIndex = 1
     local qfunc
     if not terminal then
-        actionIndex, qfunc = self:eGreedy('meta', self.network_meta, curState, testing_ep, subgoal, self.metalastAction)
+        actionIndex, qfunc = self:eGreedy('meta', self.network_meta, curState, testing_ep, self.metalastAction)
     end
-
-    -- UNCOMMENT if you want to choose the subgoals
-    -- print(qfunc)
-    -- print("Action chosen:", actionIndex)
-    -- actionIndex = io.read("*number")
 
     self.meta_transitions:add_recent_action(actionIndex) 
 
@@ -566,16 +575,6 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     local alpha = 0.999
     self.w_meta_target:mul(alpha):add(self.w_meta * (1-alpha))
 
-    -- -- TODO: depends on number of subgoals
-    -- if  self.meta_args.n_actions == 6 then
-    --     indxs = actionIndex + 2 --offset of two for obj id
-    -- else
-    --     indxs = actionIndex + 5 --offset of two for obj id
-    -- end
-
-    -- concatenate subgoal with objects (input into network)
-    -- local subg = objects[indxs]
-
     if not terminal then
         self.subgoal_total[actionIndex] = self.subgoal_total[actionIndex] or 0
         self.subgoal_total[actionIndex] = self.subgoal_total[actionIndex] + 1
@@ -584,11 +583,6 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
         self.global_subgoal_total[actionIndex] = self.global_subgoal_total[actionIndex] + 1
     end
 
-    -- -- zeroing out discrete objects
-    -- local ftrvec = torch.zeros(#objects*self.subgoal_dims)
-    -- ftrvec[indxs] = 1
-    -- ftrvec[#ftrvec] = indxs
-
     -- keep track of subgoal sequences
     if terminal then
         table.insert(self.global_subgoal_seq, self.subgoal_seq)
@@ -596,77 +590,40 @@ function nql:pick_subgoal(rawstate, metareward, terminal, testing, testing_ep)
     else
         table.insert(self.subgoal_seq, actionIndex)
     end
-
-    -- Return subgoal    
-    return actionIndex -- torch.cat(subg, ftrvec)
+    -- return subgoal    
+    return actionIndex
+    end
+    return torch.random(2)
 end
 
 function nql:isGoalReached(subgoal, state)
-    -- local agent = objects[1]
-
-    -- -- IMP: remember that subgoal includes both subgoal and all objects
-    -- local dist = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    -- if dist < 9 then --just a small threshold to indicate when agent meets subgoal (euc dist)
-    --     print('subgoal reached [OID]: ', subgoal[#subgoal])
-    --     -- local indexTensor = subgoal[{{3, self.subgoal_dims}}]:byte()
-    --     -- print(subgoal, indexTensor)
-    --     local subg = subgoal[{{1, self.subgoal_dims}}]
-    --     -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] or 0
-    --     -- self.subgoal_success[subg:sum()] = self.subgoal_success[subg:sum()] + 1
-    --     self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] or 0
-    --     self.subgoal_success[subgoal[#subgoal]] = self.subgoal_success[subgoal[#subgoal]] + 1
-
-    --     self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] or 0
-    --     self.global_subgoal_success[subgoal[#subgoal]] = self.global_subgoal_success[subgoal[#subgoal]] + 1
-
-    --     return true
-    -- else
-    --     return false
-    -- end
-
     local s = state:clone()
-    s:resize(1, unpack(self.input_dims))
+    s:resize(1, 1, self.input_dims[2], self.input_dims[3])
+    s = torch.cat(s, torch.zeros(1, self.input_dims[1]-1, self.input_dims[2],self.input_dims[3]),2)
     -- get features of state
+    if self.gpu >= 0 then s=s:cuda() end
+
     self.target_network_meta:forward(s)
-    local rawstate_ftrs = self.target_network_meta.modules[2].output:clone()
+    local rawstate_ftrs = self.target_network_meta.modules[8].output:clone()
 
     --get features of subgoal
     local subgoal_image = self.expert_data[subgoal]
+    
     self.target_network_meta:forward(subgoal_image)
-    local subgoal_ftrs = self.target_network_meta.modules[2].output:clone()
+    local subgoal_ftrs = self.target_network_meta.modules[8].output:clone()
 
-    -- print('diff:', (rawstate_ftrs - subgoal_ftrs):norm())
-    -- exit()
-    if (rawstate_ftrs - subgoal_ftrs):norm() < 0.01 then
+    print((rawstate_ftrs - subgoal_ftrs):norm()     )
+    if (rawstate_ftrs - subgoal_ftrs):norm() < 0.07 then
+        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] or 0
+        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] + 1
+        self.global_subgoal_success[subgoal] = self.global_subgoal_success[subgoal] or 0
+        self.global_subgoal_success[subgoal] = self.global_subgoal_success[subgoal] + 1
+        print('Goal reached =>', subgoal)
+        io.read()
         return true
     else
         return false
     end
-end
-
-function nql:intrinsic_reward(subgoal, objects)
-    -- return reward based on distance or 0/1 towards sub-goal
-    local agent = objects[1]
-    local reward
-    -- if self.lastSubgoal then
-    --     print("last subgoal", self.lastSubgoal[{{1,7}}])
-    -- end
-    -- print("current subgoal", subgoal[{{1,7}}])
-    -- if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
-    --     local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-    --     local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
-    --     reward = dist2 - dist1
-    -- else
-    --     reward = 0
-    -- end
-
-    
-    if not self.use_distance then
-        reward = 0 -- no intrinsic reward except for reaching the subgoal
-    end
-
-    -- print(reward)
-    return reward
 end
 
 
@@ -682,8 +639,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end 
 
     local goal_reached = self:isGoalReached(subgoal,state)
-    local intrinsic_reward = 0 --self:intrinsic_reward(subgoal, objects) - no need for this Euclidean reward
-
+    local intrinsic_reward = 0
     if terminal then
         -- reward = -200
         -- print("died")
@@ -737,14 +693,16 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end
 
     curState, subgoal = self.transitions:get_recent()    
-    -- print(subgoal)
-    curState = curState:resize(1, unpack(self.input_dims))
+    subgoal = subgoal[1]
+    curState:resize(1, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
+    -- curState = torch.cat(curState, torch.zeros(1, 1, self.input_dims[2],self.input_dims[3]),2)
+    curState = torch.cat(curState, self.expert_data_raw[subgoal], 2)
 
     -- Select action
     local actionIndex = 1
     local qfunc
     if not terminal then
-        actionIndex, qfunc = self:eGreedy('lower', self.network, curState, testing_ep, subgoal)
+        actionIndex, qfunc = self:eGreedy('lower', self.network, curState, testing_ep)
         --self:eGreedy(curState, testing_ep, subgoal)
     end
 
@@ -818,7 +776,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 end
 
 
-function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
+function nql:eGreedy(mode, network, state, testing_ep, lastsubgoal)
     -- handle learn_start
     if mode == 'meta' then
         learn_start = self.meta_learn_start
@@ -829,10 +787,10 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - learn_start))/self.ep_endt))
    
-    local subgoal_id = subgoal[#subgoal]
-    if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
-        self.ep = 0.1
-    end
+    -- local subgoal_id = subgoal[#subgoal]
+    -- if mode ~= 'meta' and  subgoal_id ~= 6 and subgoal_id ~= 8 then -- TODO: properly update later using running hit rate
+    --     self.ep = 0.1
+    -- end
 
     local n_actions = nil
     if mode == 'meta' then
@@ -853,12 +811,12 @@ function nql:eGreedy(mode, network, state, testing_ep, subgoal, lastsubgoal)
             return torch.random(1, n_actions)
         end
     else
-        return self:greedy(network, n_actions, state, subgoal, lastsubgoal)
+        return self:greedy(network, n_actions, state, lastsubgoal)
     end
 end
 
 
-function nql:greedy(network, n_actions,  state, subgoal, lastsubgoal)
+function nql:greedy(network, n_actions,  state, lastsubgoal)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')

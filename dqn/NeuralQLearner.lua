@@ -463,28 +463,28 @@ function nql:isGoalReached(subgoal, objects)
 end
 
 function nql:intrinsic_reward(subgoal, objects)
-    -- return reward based on distance or 0/1 towards sub-goal
-    local agent = objects[1]
-    local reward
-    -- if self.lastSubgoal then
-    --     print("last subgoal", self.lastSubgoal[{{1,7}}])
+    -- -- return reward based on distance or 0/1 towards sub-goal
+    -- local agent = objects[1]
+    -- local reward
+    -- -- if self.lastSubgoal then
+    -- --     print("last subgoal", self.lastSubgoal[{{1,7}}])
+    -- -- end
+    -- -- print("current subgoal", subgoal[{{1,7}}])
+    -- if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
+    --     local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
+    --     local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
+    --     reward = dist2 - dist1
+    -- else
+    --     reward = 0
     -- end
-    -- print("current subgoal", subgoal[{{1,7}}])
-    if self.lastSubgoal and (self.lastSubgoal[{{3,self.subgoal_dims}}] - subgoal[{{3, self.subgoal_dims}}]):abs():sum() == 0 then
-        local dist1 = math.sqrt((subgoal[1] - agent[1])^2 + (subgoal[2]-agent[2])^2)
-        local dist2 = math.sqrt((self.lastSubgoal[1] - self.lastobjects[1][1])^2 + (self.lastSubgoal[2]-self.lastobjects[1][2])^2)
-        reward = dist2 - dist1
-    else
-        reward = 0
-    end
 
     
-    if not self.use_distance then
-        reward = 0 -- no intrinsic reward except for reaching the subgoal
-    end
+    -- if not self.use_distance then
+    --     reward = 0 -- no intrinsic reward except for reaching the subgoal
+    -- end
 
-    -- print(reward)
-    return reward
+    -- -- print(reward)
+    -- return reward
 end
 
 
@@ -503,7 +503,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     end 
 
     local goal_reached = self:isGoalReached(subgoal, objects)
-    local intrinsic_reward = self:intrinsic_reward(subgoal, objects)
+    local intrinsic_reward = 0-- self:intrinsic_reward(subgoal, objects)
     reward = reward - 0.1 -- penalize for just standing
     if goal_reached then
         intrinsic_reward = intrinsic_reward + 50

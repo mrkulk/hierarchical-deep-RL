@@ -27,6 +27,7 @@ function create_network(args)
         net:add(args.nl())
     end
 
+
     local nel
     if args.gpu >= 0 then
         nel = net:cuda():forward(torch.zeros(1,unpack(args.input_dims))
@@ -34,36 +35,34 @@ function create_network(args)
     else
         nel = net:forward(torch.zeros(1,unpack(args.input_dims))):nElement()
     end
+    net:add(nn.Reshape(nel))
 
-
-    local full_net = nn.Sequential()
+    -- local full_net = nn.Sequential()
     -- reshape all feature planes into a vector per example
-
-    full_net:add(net)
-    full_net:add(nn.Reshape(nel))
+    -- full_net:add(net)
 
     -- fully connected layer    
-    full_net:add(nn.Linear(nel, args.n_hid[1]))
-    full_net:add(args.nl())
+    net:add(nn.Linear(nel, args.n_hid[1]))
+    net:add(args.nl())
     local last_layer_size = args.n_hid[1]
 
     for i=1,(#args.n_hid-1) do
         -- add Linear layer
         last_layer_size = args.n_hid[i+1]
-        full_net:add(nn.Linear(args.n_hid[i], last_layer_size))
-        full_net:add(args.nl())
+        net:add(nn.Linear(args.n_hid[i], last_layer_size))
+        net:add(args.nl())
     end
 
 
     -- add the last fully connected layer (to actions)
-    full_net:add(nn.Linear(last_layer_size, args.n_actions))
+    net:add(nn.Linear(last_layer_size, args.n_actions))
 
     if args.gpu >=0 then
-        full_net:cuda()
+        net:cuda()
     end
     if args.verbose >= 2 then
-        print(full_net)
+        print(net)
         print('Convolutional layers flattened output size:', nel)
     end
-    return full_net
+    return net
 end
