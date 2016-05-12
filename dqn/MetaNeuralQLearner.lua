@@ -429,7 +429,11 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
 
     local rand_offset = torch.Tensor(subgoals:size(1))
-    rand_offset:random(self.frames_per_subgoal):cuda()
+    rand_offset:random(self.frames_per_subgoal)
+
+    if self.gpu >= 0 then
+        rand_offset = rand_offset:cuda()
+    end
 
     subgoals:add(rand_offset)
     subgoals2:add(rand_offset)
@@ -466,10 +470,19 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
     end
 
     --replace half the states with positive examples
-    local rand_offset2 = torch.Tensor(self.minibatch_size/2, self.hist_len):random(self.frames_per_subgoal):cuda()
-    sub_copy = sub_copy:repeatTensor(1, 2)
-    local positive_frames = self.expert_data_raw:index(1, sub_copy:long())
-    s[{{1, self.minibatch/2},{1,2}}] = positive_frames
+    local rand_offset2 = torch.Tensor(self.minibatch_size/2):random(self.frames_per_subgoal):cuda()
+    sub_copy = sub_copy[{{1, self.minibatch_size/2}}]:squeeze()
+    sub_copy = sub_copy:repeatTensor(2, 1)
+
+
+    sub_copy[{{1}}]:add(rand_offset2)
+    rand_offset2 = torch.Tensor(self.minibatch_size/2):random(self.frames_per_subgoal):cuda()
+    sub_copy[{{2}}]:add(rand_offset2)
+
+    local positive_frames = self.expert_data_raw:index(1, sub_copy[{{1}}]:squeeze():long())
+    local positive_frames2 = self.expert_data_raw:index(1, sub_copy[{{2}}]:squeeze():long())
+    positive_frames = torch.cat(positive_frames, positive_frames2, 2):squeeze()
+    s[{{1, self.minibatch_size/2},{1,2}}] = positive_frames
 
 
 
@@ -497,6 +510,9 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     gold_label = torch.zeros(self.minibatch_size)
     gold_label[{{1, self.minibatch_size/2}}]:add(1)
+    if self.gpu >=0 then
+        gold_label = gold_label:cuda()
+    end
 
     -- local s_residual = self:get_residual(s_flatten)
     local err = self.criterion:forward(predicted_label, gold_label)
@@ -509,8 +525,9 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
         -- reconsCriterion = self:motionScaling(s_flatten, reconsCriterion)
         -- disp.image(s[{{1,4},{4},{},{}}], {win=3, title='observed'}) 
         for i = 1,self.minibatch_size do
-            confusion:add(predicted_label[i], gold_label[i])
+            self.confusion:add(predicted_label[i], gold_label[i])
          end
+         print(self.confusion)
         -- disp.image(reconstruction[{{1,4},{4},{},{}}], {win=4, title='predictions'}) 
         -- disp.image(s_residual[{{1,4},{4},{},{}}], {win=5, title='observed-residual'})
     end
@@ -744,7 +761,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
 
     local intrinsic_reward = 0
     local goal_reached = self:isGoalReached(subgoal,curState)
-    if self.numSteps < 2 * self.learn_start then -- make sure classifier is stable before relying on goal predictions
+    if self.numSteps < 10 * self.learn_start then -- make sure classifier is stable before relying on goal predictions
         goal_reached = false
     end
     if goal_reached then
@@ -976,4 +993,6 @@ function nql:report(filename)
     self.subgoal_success = {}
     self.subgoal_total = {}
     self.global_subgoal_seq = {}
+    print(self.confusion)
+    self.confusion:zero()
 end

@@ -23,7 +23,7 @@ discount=0.99
 discount_internal=0.99
 dynamic_discount=0.99  #starting value for dynamic discounting scheme
 seed=$3 #using port as seed
-learn_start=600 #1200 #50000 #100
+learn_start=600 #50000 #100
 meta_learn_start=1000 #50000 #100
 
 pool_frms_type="\"max\""
