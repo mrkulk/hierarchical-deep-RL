@@ -46,7 +46,7 @@ agent_params="total_subgoals="$total_subgoals",use_distance="$use_distance",lr="
 steps=50000000
 eval_freq=30000
 eval_steps=10000
-prog_freq=10000
+prog_freq=1000
 save_freq=10000
 gpu=0
 random_starts=1  #need to make this 30 later for random starting points for comparison with original DQN

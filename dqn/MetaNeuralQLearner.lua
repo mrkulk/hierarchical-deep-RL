@@ -212,7 +212,7 @@ function nql:__init(args)
     meta_args.n_actions = args.total_subgoals
     meta_args.input_dims = self.input_dims
     self.meta_args = meta_args
-    self.confusion = optim.ConfusionMatrix({"0","1"})
+    self.confusion = optim.ConfusionMatrix({"1","2"})
 
 
     -- create a meta network from scratch if not read in from saved file
@@ -508,15 +508,18 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
     -- zero gradients of parameters
     dw:zero()
 
-    gold_label = torch.zeros(self.minibatch_size)
-    gold_label[{{1, self.minibatch_size/2}}]:add(1)
+    -- labels: 1 - positive, 2 - negative
+    gold_label = torch.ones(self.minibatch_size)
+    gold_label[{{self.minibatch_size/2+1, self.minibatch_size}}]:add(1)
     if self.gpu >=0 then
         gold_label = gold_label:cuda()
     end
 
+    -- print(gold_label, predicted_label)
+    -- io.read()
+
     -- local s_residual = self:get_residual(s_flatten)
     local err = self.criterion:forward(predicted_label, gold_label)
-    -- print(mse_err)
     local gradInput = self.criterion:backward(predicted_label, gold_label)
 
     if metaFlag then
@@ -533,6 +536,7 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     -- get new gradient
     -- print(subgoals)
+    gradInput:mul(-1)
     network:backward(s, {targets, gradInput})
 
     -- add weight cost to gradient
