@@ -527,7 +527,6 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
         for i = 1,self.minibatch_size do
             self.confusion:add(predicted_label[i], gold_label[i])
          end
-         print(self.confusion)
         -- disp.image(reconstruction[{{1,4},{4},{},{}}], {win=4, title='predictions'}) 
         -- disp.image(s_residual[{{1,4},{4},{},{}}], {win=5, title='observed-residual'})
     end
