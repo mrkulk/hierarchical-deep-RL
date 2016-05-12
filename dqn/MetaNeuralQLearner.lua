@@ -92,6 +92,8 @@ function nql:__init(args)
     self.nonTermProb    = args.nonTermProb or 1
     self.bufferSize     = args.bufferSize or 512
 
+    self.frames_per_subgoal = 4
+
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork()
@@ -210,6 +212,8 @@ function nql:__init(args)
     meta_args.n_actions = args.total_subgoals
     meta_args.input_dims = self.input_dims
     self.meta_args = meta_args
+    self.confusion = optim.ConfusionMatrix({"0","1"})
+
 
     -- create a meta network from scratch if not read in from saved file
     if not self.network_meta then
@@ -233,6 +237,12 @@ function nql:__init(args)
     self.g_meta  = self.dw_meta:clone():fill(0)
     self.g2_meta = self.dw_meta:clone():fill(0)
 
+    self.criterion = nn.ClassNLLCriterion()
+    -- self.criterion.sizeAverage = false
+
+    if self.gpu and self.gpu >= 0 then
+        self.criterion:cuda()
+    end
 
     if self.target_q then
         self.target_network = self.network:clone()
@@ -242,19 +252,22 @@ function nql:__init(args)
     end
 
     -- load expert images
-    self.expert_data = torch.zeros(self.total_subgoals, unpack(self.input_dims))
-    self.expert_data_raw = torch.zeros(self.total_subgoals, 1, 1, self.input_dims[2], self.input_dims[3])
+    self.expert_data = torch.zeros(self.total_subgoals*self.frames_per_subgoal, unpack(self.input_dims)) 
+    self.expert_data_raw = torch.zeros(self.total_subgoals*self.frames_per_subgoal, 1, 1, self.input_dims[2], self.input_dims[3])
     for i=1,self.total_subgoals do
-        expert_data = image.load('expert/' .. i .. '.png')
-        expert_data = self:preprocess(expert_data):float()
-        expert_data:resize(1, 1, self.input_dims[2], self.input_dims[3])
-        self.expert_data_raw[i] = expert_data:clone()
-        self.expert_data[i] = torch.cat(expert_data, torch.zeros(1, self.input_dims[1]-1, self.input_dims[2],self.input_dims[3]),2)
-        if self.gpu>=0 then 
-            self.expert_data=self.expert_data:cuda()
-            -- self.expert_data_raw=self.expert_data_raw:cuda()
+        for j=1,self.frames_per_subgoal do 
+            expert_data = image.load('expert/' .. i .. '/' .. j .. '.png')
+            expert_data = self:preprocess(expert_data):float()
+            expert_data:resize(1, 1, self.input_dims[2], self.input_dims[3])
+            self.expert_data_raw[(i-1)*self.frames_per_subgoal + j] = expert_data:clone()
+            self.expert_data[(i-1)*self.frames_per_subgoal + j] = torch.cat(expert_data, torch.zeros(1, self.input_dims[1]-1, self.input_dims[2],self.input_dims[3]),2)
+            if self.gpu >= 0 then
+                self.expert_data=self.expert_data:cuda()
+                -- self.expert_data_raw=self.expert_data_raw:cuda()
+            end
         end
     end
+    
     -- self.expert_data = torch.Tensor(self.expert_data)
     -- self.expert_data_raw = torch.Tensor(self.expert_data_raw)
 end
@@ -318,7 +331,7 @@ function nql:getQUpdate(args, external_r)
 
     -- Compute max_a Q(s_2, a).
     -- print(s2:size(), subgoals2:size())
-    q2_max = target_q_net:forward(s2):float():max(2)
+    q2_max = target_q_net:forward(s2)[1]:float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
 
@@ -341,7 +354,8 @@ function nql:getQUpdate(args, external_r)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = args.network:forward(s):float()
+    local q_all, predicted_label = unpack(args.network:forward(s))
+    q_all = q_all:float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -360,8 +374,40 @@ function nql:getQUpdate(args, external_r)
 
     if self.gpu >= 0 then targets = targets:cuda() end
 
-    return targets, delta, q2_max
+    return targets, delta, q2_max, predicted_label
 end
+
+
+-- function nql:get_residual(s)
+--     local scaling = 1.0 --  10.0 --3
+--     local s_reshaped = s:reshape(self.minibatch_size, self.input_dims[1], self.input_dims[2], self.input_dims[3])
+--     local residual = s_reshaped:clone():zero()
+
+--     for i=1,self.hist_len do
+--         if i == 1 then
+--             residual[{{},i,{},{}}] = s_reshaped[{{}, i,{},{}}] - s_reshaped[{{}, i+1,{},{}}]
+--         elseif i == self.hist_len then
+--             residual[{{},i,{},{}}] = s_reshaped[{{}, i,{},{}}] - s_reshaped[{{}, i-1,{},{}}]
+--         else
+--             local tmp1 = (s_reshaped[{{}, i,{},{}}] - s_reshaped[{{}, i-1,{},{}}]):abs()
+--             local tmp2 = (s_reshaped[{{}, i,{},{}}] - s_reshaped[{{}, i+1,{},{}}]):abs()
+--             residual[{{},i,{},{}}] = tmp1 + tmp2
+--         end
+--         residual[{{},i,{},{}}] = residual[{{},i,{},{}}]:abs()
+--         residual[{{},i,{},{}}] = torch.ge(residual[{{},i,{},{}}], 0.001) --* (scaling-1)
+--         -- residual[{{},i,{},{}}] = residual[{{},i,{},{}}] -- + 1.0
+--     end
+--     -- local res = residual:clone()
+--     -- res = res[{{1, 4}}]:reshape(4, self.hist_len , 84,84); res = res[{{},1,{},{}}]
+--     -- disp.image(res, {win=5, title='gradient scaling'})
+
+--     -- residual = residual:reshape(self.minibatch_size*self.input_dims[1]*self.input_dims[2]*self.input_dims[3])
+    
+--     -- grads = grads:cmul(residual)
+--     return residual
+-- end
+
+
 
 
 function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, tmp, deltas, external_r, nactions, metaFlag)
@@ -372,6 +418,21 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
     local s, a, r, s2, term, subgoals, subgoals2 = tran_table:sample(self.minibatch_size)
     subgoals = subgoals:reshape(subgoals:size(1))
     subgoals2 = subgoals2:reshape(subgoals2:size(1))
+ 
+
+    --multiply by number of frames per subgoal and add random offset to sample a frame for each subgoal
+    subgoals:add(-1):mul(self.frames_per_subgoal)
+    subgoals2:add(-1):mul(self.frames_per_subgoal)
+
+    sub_copy = subgoals:clone()
+    sub_copy2 = subgoals2:clone()
+
+
+    local rand_offset = torch.Tensor(subgoals:size(1))
+    rand_offset:random(self.frames_per_subgoal):cuda()
+
+    subgoals:add(rand_offset)
+    subgoals2:add(rand_offset)
 
     expert_frames = self.expert_data_raw:index(1, subgoals:long())
     expert_frames2 = self.expert_data_raw:index(1, subgoals2:long())
@@ -382,6 +443,8 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
         expert_frames2 = expert_frames2:cuda()
     end
     -- print(expert_frames:size())
+
+  
 
     if metaFlag then        
         expert_frames:zero()
@@ -402,6 +465,14 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
 
     end
 
+    --replace half the states with positive examples
+    local rand_offset2 = torch.Tensor(self.minibatch_size/2, self.hist_len):random(self.frames_per_subgoal):cuda()
+    sub_copy = sub_copy:repeatTensor(1, 2)
+    local positive_frames = self.expert_data_raw:index(1, sub_copy:long())
+    s[{{1, self.minibatch/2},{1,2}}] = positive_frames
+
+
+
     -- print(r, s:sum(2))
     if external_r then
         r = r[{{},1}] --extract external reward
@@ -415,15 +486,38 @@ function nql:qLearnMinibatch(network, target_network, tran_table, dw, w, g, g2, 
         r = r[{{},2}] --external + intrinsic reward 
     end
 
-    local targets, delta, q2_max = self:getQUpdate({s=s, a=a, r=r, s2=s2, n_actions = nactions,
+    local targets, delta, q2_max, predicted_label = self:getQUpdate({s=s, a=a, r=r, s2=s2, n_actions = nactions,
         term=term, subgoals = subgoals, subgoals2=subgoals2, network = network, update_qmax=true, target_network = target_network}, external_r)
+
+    --zero out half the Q-value targets
+    targets[{{1, self.minibatch_size/2}}]:zero()
 
     -- zero gradients of parameters
     dw:zero()
 
+    gold_label = torch.zeros(self.minibatch_size)
+    gold_label[{{1, self.minibatch_size/2}}]:add(1)
+
+    -- local s_residual = self:get_residual(s_flatten)
+    local err = self.criterion:forward(predicted_label, gold_label)
+    -- print(mse_err)
+    local gradInput = self.criterion:backward(predicted_label, gold_label)
+
+    if metaFlag then
+        gradInput:zero()
+    else
+        -- reconsCriterion = self:motionScaling(s_flatten, reconsCriterion)
+        -- disp.image(s[{{1,4},{4},{},{}}], {win=3, title='observed'}) 
+        for i = 1,self.minibatch_size do
+            confusion:add(predicted_label[i], gold_label[i])
+         end
+        -- disp.image(reconstruction[{{1,4},{4},{},{}}], {win=4, title='predictions'}) 
+        -- disp.image(s_residual[{{1,4},{4},{},{}}], {win=5, title='observed-residual'})
+    end
+
     -- get new gradient
     -- print(subgoals)
-    network:backward(s, targets)
+    network:backward(s, {targets, gradInput})
 
     -- add weight cost to gradient
     dw:add(-self.wc, w)
@@ -598,28 +692,19 @@ end
 
 function nql:isGoalReached(subgoal, state)
     local s = state:clone()
-    s:resize(1, 1, self.input_dims[2], self.input_dims[3])
-    s = torch.cat(s, torch.zeros(1, self.input_dims[1]-1, self.input_dims[2],self.input_dims[3]),2)
+    s:resize(1, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
+    local expert_frame = self.expert_data_raw[(subgoal-1)*self.frames_per_subgoal + torch.random(self.frames_per_subgoal)]
+    
+    s = torch.cat(s, expert_frame,2)
+    
     -- get features of state
     if self.gpu >= 0 then s=s:cuda() end
 
-    self.target_network_meta:forward(s)
-    local rawstate_ftrs = self.target_network_meta.modules[8].output:clone()
-
-    --get features of subgoal
-    local subgoal_image = self.expert_data[subgoal]
-    
-    self.target_network_meta:forward(subgoal_image)
-    local subgoal_ftrs = self.target_network_meta.modules[8].output:clone()
-
-    print((rawstate_ftrs - subgoal_ftrs):norm()     )
-    if (rawstate_ftrs - subgoal_ftrs):norm() < 0.07 then
-        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] or 0
-        self.subgoal_success[subgoal] = self.subgoal_success[subgoal] + 1
-        self.global_subgoal_success[subgoal] = self.global_subgoal_success[subgoal] or 0
-        self.global_subgoal_success[subgoal] = self.global_subgoal_success[subgoal] + 1
-        print('Goal reached =>', subgoal)
-        io.read()
+    _, pred_label = unpack(self.target_network:forward(s))
+    pred_label = pred_label:squeeze()
+    pred_label = pred_label:max(1)[1]
+    pred_label = pred_label - 1
+    if pred_label == 1 then
         return true
     else
         return false
@@ -638,21 +723,6 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         self.deathPosition = objects[1][{{1,2}}] --just store the x and y coords of the agent
     end 
 
-    local goal_reached = self:isGoalReached(subgoal,state)
-    local intrinsic_reward = 0
-    if terminal then
-        -- reward = -200
-        -- print("died")
-        intrinsic_reward = intrinsic_reward - 200
-    end
-
-    -- reward = reward - 0.1 -- penalize for just standing
-    intrinsic_reward = intrinsic_reward - 0.1
-
-    if goal_reached then
-        intrinsic_reward = intrinsic_reward + 50  --binary reward for reaching the goal
-    end
-
     local curState
 
     if self.max_reward then
@@ -669,6 +739,22 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
     subgoal_vec[1] = subgoal
 
     self.transitions:add_recent_state(state, terminal, subgoal_vec)  
+    curState, subgoal = self.transitions:get_recent()    
+    subgoal = subgoal[1]
+
+    local intrinsic_reward = 0
+    local goal_reached = self:isGoalReached(subgoal,curState)
+    if self.numSteps < 2 * self.learn_start then -- make sure classifier is stable before relying on goal predictions
+        goal_reached = false
+    end
+    if goal_reached then
+        intrinsic_reward = intrinsic_reward + 50  --binary reward for reaching the goal
+    end
+    if terminal then
+        intrinsic_reward = intrinsic_reward - 200
+    end
+    intrinsic_reward = intrinsic_reward - 0.1
+
 
     --Store transition s, a, r, s'
     if self.lastState and not testing and self.lastSubgoal then
@@ -692,8 +778,7 @@ function nql:perceive(subgoal, reward, rawstate, terminal, testing, testing_ep)
         -- self:sample_validation_data()
     end
 
-    curState, subgoal = self.transitions:get_recent()    
-    subgoal = subgoal[1]
+
     curState:resize(1, self.input_dims[1]-1, self.input_dims[2], self.input_dims[3])
     -- curState = torch.cat(curState, torch.zeros(1, 1, self.input_dims[2],self.input_dims[3]),2)
     curState = torch.cat(curState, self.expert_data_raw[subgoal], 2)
@@ -827,7 +912,8 @@ function nql:greedy(network, n_actions,  state, lastsubgoal)
         state = state:cuda()
         -- subgoal = subgoal:cuda()
     end
-    local q = network:forward(state):float():squeeze()
+    local q, unused = unpack(network:forward(state))
+    q = q:float():squeeze()
     local maxq = q[1]
     local besta = { 1 }
 
